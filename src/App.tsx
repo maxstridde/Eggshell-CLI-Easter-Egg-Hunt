@@ -17,6 +17,7 @@ interface EditorState {
 interface PasswordState {
   title: string;
   onSubmit: (pwd: string) => void;
+  onCancel?: () => void;
 }
 
 export default function App() {
@@ -91,8 +92,8 @@ export default function App() {
         setEditor({ path, initial, onSave }),
       sudoActive,
       setSudoActive,
-      passwordPrompt: (onSubmit, title) =>
-        setPassword({ title: title ?? "Password:", onSubmit }),
+      passwordPrompt: (onSubmit, title, onCancel) =>
+        setPassword({ title: title ?? "Password:", onSubmit, onCancel }),
     });
   };
 
@@ -209,7 +210,7 @@ export default function App() {
         <PasswordModal
           title={password.title}
           onCancel={() => {
-            password.onSubmit("");
+            password.onCancel?.();
             setPassword(null);
           }}
           onSubmit={(pwd) => {

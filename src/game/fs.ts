@@ -143,8 +143,11 @@ export function buildFilesystem(): FsNode {
           "Player's notebook:\n" +
             "- First egg is said to be in ~/documents/egg1.txt\n" +
             "- But documents is LOCKED until you are ONLINE.\n" +
+            "  Try `wifi list` to find a network to join.\n" +
             "- There's a strange note about a 'magic' directory.\n" +
-            "  If I create it AND put a token.txt inside, something unlocks...\n"
+            "  It has to be created right here, in your home folder /home/player.\n" +
+            "  And there must be a file called token.txt inside it.\n" +
+            "  Then something will unlock...\n"
         ),
         dir("documents", [
           file(
@@ -158,15 +161,19 @@ export function buildFilesystem(): FsNode {
           file(
             "clue2.riddle",
             "Riddle #2:\n" +
-              "  'I am a folder that does not exist.\n" +
-              "   Create me, and inside me create token.txt.\n" +
-              "   Only then will ~/secrets open its gates.'\n" +
+              "  'Deep in the player's home there is a hollow.\n" +
+              "   Fill it with a folder called magic,\n" +
+              "   and inside that folder, leave a token.\n" +
+              "   Only then will the secrets room open its gates.'\n" +
               "\n" +
-              "Commands you may need:\n" +
-              "  mkdir <name>   — create a directory\n" +
-              "  touch <name>   — create an empty file\n" +
+              "--- Step-by-step ---\n" +
+              "  1. Go home first:          cd /home/player\n" +
+              "  2. Create the folder:      mkdir magic\n" +
+              "  3. Step inside:            cd magic\n" +
+              "  4. Leave your token:       touch token.txt\n" +
+              "  5. Go back and look:       cd ..   then   ls\n" +
               "\n" +
-              "The directory you need is called: magic\n"
+              "You should now see ~/secrets unlocked. Good luck.\n"
           ),
         ], {
           locked: (s) => !s.wifiConnected,
@@ -212,7 +219,7 @@ export function buildFilesystem(): FsNode {
           ),
         ], {
           locked: (s) => !(s.createdMagicDir && s.createdTokenFile),
-          hint: "[locked — requires ~/magic/token.txt to exist]",
+          hint: "[locked — create /home/player/magic/ and /home/player/magic/token.txt first]",
         }),
         dir("vault", [
           file(
@@ -296,8 +303,10 @@ export function buildFilesystem(): FsNode {
 // --- Filesystem helpers --------------------------------------------------
 
 export function resolvePath(cwd: string, target: string): string {
-  // Very small path resolver. Supports absolute paths, "..", ".", and relative.
   if (!target) return cwd;
+  // expand ~ to home directory
+  if (target === "~") return "/home/player";
+  if (target.startsWith("~/")) target = "/home/player/" + target.slice(2);
   const isAbs = target.startsWith("/");
   const base = isAbs ? "/" : cwd;
   const parts = base.split("/").filter(Boolean);

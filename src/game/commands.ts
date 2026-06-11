@@ -11,7 +11,7 @@ export interface CmdContext {
   // pending sudo context — when true, next command runs as root
   sudoActive: boolean;
   setSudoActive: (b: boolean) => void;
-  passwordPrompt: (onSubmit: (pwd: string) => void, title?: string) => void;
+  passwordPrompt: (onSubmit: (pwd: string) => void, title?: string, onCancel?: () => void) => void;
 }
 
 export type CommandHandler = (args: string[], ctx: CmdContext) => void;
@@ -39,7 +39,7 @@ Tip: paths starting with / are absolute. Otherwise they are relative to cwd.
 function stageOf(s: GameState): string {
   if (!s.wifiConnected) return "Stage 1 — OFFLINE: connect to Wi-Fi";
   if (!s.createdMagicDir || !s.createdTokenFile)
-    return "Stage 2 — create ~/magic and ~/magic/token.txt";
+    return "Stage 2 — go home (`cd /home/player`), then `mkdir magic`, `cd magic`, `touch token.txt`";
   if (!s.secretsUnlocked) return "Stage 3 — edit ~/secrets/secrets.cfg";
   if (!s.knowsSudoPassword) return "Stage 4 — decode the base64 sudo clue";
   if (!s.adminUnlocked) return "Stage 5 — sudo edit /etc/privilege.cfg";
@@ -49,6 +49,16 @@ function stageOf(s: GameState): string {
 
 export const commands: Record<string, CommandHandler> = {
   help: (_, ctx) => ctx.print(HELP_TEXT, "text-emerald-300"),
+
+  start: (_, ctx) => {
+    ctx.print("Welcome to Eggshell! Here is how to begin:", "text-emerald-300");
+    ctx.print("");
+    ctx.print("  1. Type `cat README.txt` to read the intro file.");
+    ctx.print("  2. Type `ls` to see what is in your home directory.");
+    ctx.print("  3. Type `stage` at any time to see your current objective.");
+    ctx.print("");
+    ctx.print("Your first mission: get online. Type `wifi list`.", "text-yellow-300");
+  },
 
   clear: () => {
     /* handled at UI level */
@@ -74,39 +84,43 @@ export const commands: Record<string, CommandHandler> = {
   ls: (args, ctx) => {
     const target = args[0] ? resolvePath(ctx.cwd, args[0]) : ctx.cwd;
     const node = findNode(ctx.root, target);
-    if (!node) {
-      ctx.print(`ls: cannot access '${args[0]}': No such file or directory`, "text-red-400");
+    // also check if target is a user-created directory
+    const isUserDir = ctx.state.userCreated.some((u) => u.type === "dir" && u.path === target);
+
+    if (!node && !isUserDir) {
+      ctx.print(`ls: cannot access '${args[0] ?? target}': No such file or directory`, "text-red-400");
       return;
     }
-    if (node.kind === "file") {
+    if (node && node.kind === "file") {
       ctx.print(node.name);
       return;
     }
-    // show children
+
     const names: string[] = [];
-    for (const child of node.children) {
-      const isLocked = child.kind === "dir" && child.locked && child.locked(ctx.state);
-      const suffix =
-        child.kind === "dir"
-          ? isLocked
-            ? "/  [locked]"
-            : "/"
-          : "";
-      names.push(child.name + suffix);
+
+    // children from the real FS tree (only if node exists and is a dir)
+    if (node && node.kind === "dir") {
+      for (const child of node.children) {
+        const isLocked = child.kind === "dir" && child.locked && child.locked(ctx.state);
+        const suffix = child.kind === "dir" ? (isLocked ? "/  [locked]" : "/") : "";
+        names.push(child.name + suffix);
+      }
     }
-    // also show user-created files/dirs if target == /home/player or /home/player/<user created sub>
+
+    // children from userCreated whose parent equals target
     const userStuff = ctx.state.userCreated.filter((u) => {
       const uParent = u.path.split("/").slice(0, -1).join("/") || "/";
       return uParent === target;
     });
     for (const u of userStuff) {
-      names.push(u.type === "dir" ? u.path.split("/").pop()! + "/" : u.path.split("/").pop()!);
+      const name = u.path.split("/").pop()!;
+      names.push(u.type === "dir" ? name + "/" : name);
     }
+
     if (names.length === 0) {
       ctx.print("(empty)");
       return;
     }
-    // print in columns — simple: one per line keeps minimal feel
     names.sort();
     names.forEach((n) => {
       if (n.includes("[locked]")) ctx.print(n, "text-stone-500");
@@ -196,10 +210,17 @@ export const commands: Record<string, CommandHandler> = {
       ctx.print("mkdir: missing operand", "text-red-400");
       return;
     }
-    // only allow creating inside /home/player for simplicity
     const target = resolvePath(ctx.cwd, args[0]);
     if (!target.startsWith("/home/player")) {
       ctx.print("mkdir: permission denied (stay inside /home/player for now)", "text-red-400");
+      return;
+    }
+    // validate parent exists
+    const parentPath = target.split("/").slice(0, -1).join("/") || "/";
+    const parentInFs = findNode(ctx.root, parentPath);
+    const parentIsUserDir = ctx.state.userCreated.some((u) => u.type === "dir" && u.path === parentPath);
+    if (!parentInFs && !parentIsUserDir) {
+      ctx.print(`mkdir: cannot create directory '${args[0]}': No such file or directory`, "text-red-400");
       return;
     }
     if (findNode(ctx.root, target) || ctx.state.userCreated.some((u) => u.path === target)) {
@@ -214,7 +235,7 @@ export const commands: Record<string, CommandHandler> = {
       if (target === "/home/player/magic") next.createdMagicDir = true;
       return next;
     });
-    ctx.print(`created directory: ${args[0]}`, "text-emerald-300");
+    ctx.print(`created directory: ${target}`, "text-emerald-300");
   },
 
   touch: (args, ctx) => {
@@ -225,6 +246,15 @@ export const commands: Record<string, CommandHandler> = {
     const target = resolvePath(ctx.cwd, args[0]);
     if (!target.startsWith("/home/player")) {
       ctx.print("touch: permission denied (stay inside /home/player for now)", "text-red-400");
+      return;
+    }
+    // validate parent exists
+    const parentPath = target.split("/").slice(0, -1).join("/") || "/";
+    const parentInFs = findNode(ctx.root, parentPath);
+    const parentIsUserDir = ctx.state.userCreated.some((u) => u.type === "dir" && u.path === parentPath);
+    if (!parentInFs && !parentIsUserDir) {
+      ctx.print(`touch: cannot touch '${args[0]}': No such file or directory`, "text-red-400");
+      ctx.print(`  Hint: create the parent directory first with \`mkdir\`.`, "text-yellow-300");
       return;
     }
     if (findNode(ctx.root, target) || ctx.state.userCreated.some((u) => u.path === target)) {
@@ -239,7 +269,7 @@ export const commands: Record<string, CommandHandler> = {
       if (target === "/home/player/magic/token.txt") next.createdTokenFile = true;
       return next;
     });
-    ctx.print(`created file: ${args[0]}`, "text-emerald-300");
+    ctx.print(`created file: ${target}`, "text-emerald-300");
   },
 
   edit: (args, ctx) => {
@@ -269,21 +299,20 @@ export const commands: Record<string, CommandHandler> = {
     }
     const initial = ctx.state.edits[target] ?? node.content;
     ctx.openEditor(target, initial, (newContent) => {
+      let saved = false;
       ctx.setState((s) => {
         const next = { ...s, edits: { ...s.edits, [target]: newContent } };
-        // run onEdit side-effects on a shallow state copy for validation
         const mut: GameState = { ...next };
         const err = node.onEdit ? node.onEdit(newContent, mut) : null;
         if (err) {
-          // roll back the edit in case of error
           ctx.print(`edit: ${err}`, "text-red-400");
           return s;
         }
-        // copy back mutations
         Object.assign(next, mut);
+        saved = true;
         return next;
       });
-      ctx.print(`"${args[0]}" saved.`, "text-emerald-300");
+      if (saved) ctx.print(`"${args[0]}" saved.`, "text-emerald-300");
     });
   },
 
@@ -381,10 +410,6 @@ export const commands: Record<string, CommandHandler> = {
         ctx.print(`${cmd}: command not found`, "text-red-400");
         ctx.setSudoActive(false);
         return;
-      }
-      // special-case: sudo cd /root — just allow it
-      if (cmd === "cd" && (rest[0] === "/root" || resolvePath(ctx.cwd, rest[0]) === "/root")) {
-        ctx.setState((s) => ({ ...s, adminUnlocked: true }));
       }
       handler(rest, ctx);
       ctx.setSudoActive(false);

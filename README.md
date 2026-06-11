@@ -19,7 +19,7 @@ single typed command would do in half a second.
 
 - a prompt with a user, a host, and a current directory,
 - a vocabulary of short verbs (`ls`, `cd`, `cat`, `mkdir`, `touch`, `edit`,
-  `sudo`, …),
+  `unzip`, `sudo`, …),
 - arguments, flags, absolute vs. relative paths,
 - the idea that *files and folders are the API of the system*,
 - the idea that some doors are locked until a config file says otherwise,
@@ -48,9 +48,12 @@ WSL terminal.
    proceed. This mirrors how `/etc/sudoers`, `nginx.conf`, `sshd_config`,
    and a thousand other real-world files actually work.
 5. **Privilege escalation as a plot point.** `sudo` is not just another
-   command — it is the final boss. The player must find a password hidden as
-   a base64-encoded string, decode it, and use it to edit a system file
+   command — it is the penultimate boss. The player must find a password hidden
+   as a base64-encoded string, decode it, and use it to edit a system file
    that lives in `/etc`. That is, in a nutshell, what being a sysadmin is.
+6. **Archive extraction as the final step.** The last egg is locked inside a
+   zip archive in `/root`. The player must `unzip` it before they can `cat`
+   the prize — teaching one more everyday skill as the grand finale.
 
 ---
 
@@ -61,7 +64,18 @@ npm install
 npm run dev
 ```
 
-Then open the URL Vite prints. You start in `/home/player`. Type `help`.
+Then open the URL Vite prints. You start in `/home/player`. Type `start`.
+
+### Difficulty
+
+When you start, pick a difficulty in the intro modal — or change it any time with `difficulty <level>`:
+
+| level | `stage` output | `hint` command | map panel |
+| --- | --- | --- | --- |
+| **easy** | full step-by-step guidance | verbose walkthrough | always visible |
+| **medium** | objective summary | verbose walkthrough | toggle with `map` |
+| **hard** | stage label only | one-step nudge | toggle with `map` |
+| **impossible** | silent | forbidden | forbidden |
 
 ### Commands implemented
 
@@ -75,16 +89,30 @@ Then open the URL Vite prints. You start in `/home/player`. Type `help`.
 | `cat <file>` | print a file |
 | `mkdir <name>` | create a directory (inside `/home/player`) |
 | `touch <name>` | create an empty file |
+| `rm <name>` | remove a file or empty directory |
 | `edit <file>` | open the built-in text editor |
+| `unzip <file>` | extract a zip archive |
 | `wifi list` | show available Wi-Fi networks |
 | `wifi connect <SSID>` | connect (prompts for a password) |
 | `base64 -d <string>` | decode a base64 string |
 | `sudo <command>` | run a command as root (prompts for password) |
+| `hint` | get a hint for the current stage (adapts to difficulty) |
+| `difficulty [level]` | show or set difficulty (easy/medium/hard/impossible) |
+| `map` | toggle the map panel (medium/hard only) |
+| `save` | export progress to a save string (copied to clipboard) |
+| `load <string>` | restore progress from a save string |
 | `eggs` | show how many eggs you've found |
-| `stage` | print the current stage |
+| `stage` | print the current stage objective |
 
-Arrow-up / arrow-down walk through command history. `Ctrl+L` clears the
-screen, just like a real shell.
+Arrow-up / arrow-down walk through command history. `Ctrl+L` clears the screen, just like a real shell.
+
+### Saving progress
+
+`save` prints a base64 string encoding your full game state. Copy it somewhere safe.
+`load <string>` restores from that string.
+
+The game also **autosaves to localStorage** on every action. When you reload the page,
+a `[ restore save ]` button appears in the intro modal if an autosave exists.
 
 ---
 
@@ -98,12 +126,12 @@ The stages form a **DAG** — not strictly linear, but each stage depends on
 most of the previous ones being complete.
 
 ```
-Stage 1: OFFLINE ──► connect Wi-Fi  ──►  unlocks /home/player/documents
-Stage 2: CREATE  ──► mkdir magic + touch magic/token.txt ──► unlocks /home/player/secrets
-Stage 3: EDIT    ──► edit secrets.cfg (flip a boolean) ──► unlocks /home/player/vault
-Stage 4: DECODE  ──► base64 -d <clue> ──► reveals the sudo password
-Stage 5: SUDO    ──► sudo edit /etc/privilege.cfg ──► unlocks /admin and /root
-Stage 6: ROOT    ──► sudo cd /root ──► cat final_egg.txt  (the prize)
+Stage 1: OFFLINE ──► connect Wi-Fi  ──►  unlocks /home/player/documents  ──►  egg1
+Stage 2: CREATE  ──► mkdir magic + touch magic/token.txt  ──►  unlocks /home/player/secrets  ──►  egg2
+Stage 3: EDIT    ──► edit secrets.cfg (flip a boolean)  ──►  unlocks /home/player/vault  ──►  egg3
+Stage 4: DECODE  ──► base64 -d <clue>  ──►  reveals the sudo password
+Stage 5: SUDO    ──► sudo edit /etc/privilege.cfg  ──►  unlocks /admin and /root  ──►  egg4
+Stage 6: ROOT    ──► sudo cd /root  ──►  unzip final_egg.zip  ──►  cat final_egg.txt  ──►  egg5
 ```
 
 Each stage also contains an **egg file** (`egg1.txt`, `egg2.txt`, …).
@@ -125,7 +153,7 @@ entirely, because each locked directory guards the next.
 
 ### Stage 1 — Get online
 
-1. `help` — see the command list.
+1. Type `start` — see the quick-start guide.
 2. `cat README.txt` — read the intro. It mentions Wi-Fi.
 3. `wifi list` — shows 4 networks. `EggHunt-5G` has the strongest signal.
 4. `wifi connect EggHunt-5G` — password prompt.
@@ -133,53 +161,51 @@ entirely, because each locked directory guards the next.
    `/etc/wifi.json` if the player `cat`s it — on purpose, so they learn
    that "config files contain secrets").
 6. You are ONLINE. `/home/player/documents` is now unlocked.
+7. `cd documents` then `cat egg1.txt` — 🥚 #1 collected.
 
 ### Stage 2 — The magic directory
 
-1. `cd documents` then `ls`.
-2. `cat egg1.txt` — 🥚 #1 collected.
-3. `cat clue2.riddle` — it tells you to create a directory called `magic`
-   and inside it a file called `token.txt`.
-4. `cd ..` (back to `/home/player`).
-5. `mkdir magic` — creates the directory.
-6. `touch magic/token.txt` — creates the empty file.
-7. `ls` now shows `secrets/` without the `[locked]` tag.
+1. `cat clue2.riddle` (inside `documents`) — it tells you to create a
+   directory called `magic` and inside it a file called `token.txt`.
+2. `cd ..` (back to `/home/player`).
+3. `mkdir magic` — creates the directory.
+4. `touch magic/token.txt` — creates the empty file.
+5. `ls` now shows `secrets/` without the `[locked]` tag.
+6. `cd secrets` then `cat egg2.txt` — 🥚 #2 collected.
 
 ### Stage 3 — The config file
 
-1. `cd secrets` then `ls`.
-2. `cat egg2.txt` — 🥚 #2 collected. It points you at `secrets.cfg`.
-3. `edit secrets.cfg` — opens the built-in editor.
-4. Change the line `path_to_vault_locked = true` to
-   `path_to_vault_locked = false`. Save.
-5. `cd ..` then `ls`. The `vault/` directory is now unlocked.
+1. `ls` inside `secrets` — you see `secrets.cfg` and `editor-tips.txt`.
+2. `edit secrets.cfg` — opens the built-in editor.
+3. Change the line `path_to_vault_locked = true` to
+   `path_to_vault_locked = false`. Save (`Ctrl+S` or click Save).
+4. `cd ..` then `ls`. The `vault/` directory is now unlocked.
+5. `cd vault` then `cat egg3.txt` — 🥚 #3 collected.
 
 ### Stage 4 — Decode the password
 
-1. `cd vault` then `ls`.
-2. `cat egg3.txt` — 🥚 #3 collected.
-3. `cat sudo_clue.b64` — shows the string `c2VjcmV0LWVnZw==`.
-4. `base64 -d c2VjcmV0LWVnZw==` — outputs **`secret-egg`**.
+1. `cat sudo_clue.b64` (inside `vault`) — shows the string `c2VjcmV0LWVnZw==`.
+2. `base64 -d c2VjcmV0LWVnZw==` — outputs **`secret-egg`**.
    This is the `sudo` password.
 
 ### Stage 5 — Privilege escalation
 
 1. `cat how-to-sudo.txt` — explains `sudo`.
-2. Try `edit /etc/privilege.cfg` — permission denied. The file lives in
-   `/etc` and requires root.
+2. Try `edit /etc/privilege.cfg` — permission denied. The file requires root.
 3. `sudo edit /etc/privilege.cfg` — password prompt. Enter `secret-egg`.
-4. In the editor, change `allow_admin = false` to `allow_admin = true`.
-   Save.
+4. Change `allow_admin=false` to `allow_admin=true`. Save.
 5. `cd /home/player` then `ls` — the `admin/` directory is now unlocked.
 6. `cd admin` then `cat egg4.txt` — 🥚 #4 collected.
 
 ### Stage 6 — Become root
 
-1. `egg4.txt` tells you the final egg lives in `/root`.
-2. `cd /root` — permission denied. Suggests `sudo cd /root`.
+1. `egg4.txt` tells you the final egg is inside `/root/final_egg.zip`.
+2. `cd /root` — permission denied. Use `sudo cd /root`.
 3. `sudo cd /root` — password prompt. Enter `secret-egg` again.
-4. `cat final_egg.txt` — 🏆 the final egg!
-5. Type `eggs` to confirm: **5 / 5**. You win.
+4. `ls` — you see `final_egg.zip`.
+5. `unzip final_egg.zip` — extracts `final_egg.txt`.
+6. `cat final_egg.txt` — 🏆 the final egg!
+7. Type `eggs` to confirm: **5 / 5**. You win.
 
 ---
 
@@ -202,9 +228,13 @@ src/
   App.tsx              — terminal UI: prompt, history, scroll, modals
   game/
     fs.ts              — virtual filesystem (tree of FsNode), game state
-    commands.ts        — command dictionary: ls, cd, cat, edit, sudo, …
-  main.tsx, index.css  — entry points (unchanged from default template)
+    commands.ts        — command dictionary: ls, cd, cat, edit, sudo, unzip, …
+    stage.ts           — stageOf + stageLabel shared utilities
+  utils/cn.ts          — clsx + tailwind-merge helper
+main.tsx, index.css    — entry points (unchanged from default template)
 README.md              — this file (manifesto + solutions)
+CLAUDE.md              — AI assistant guidance
+todo.md                — improvement backlog
 index.html             — <title> set to "Eggshell — The CLI Easter Egg Hunt"
 ```
 
@@ -226,10 +256,8 @@ Commands mutate this state via `setState((s) => …)`.
 4. **Decoder gate.** `base64 -d c2VjcmV0LWVnZw==` → `secret-egg`.
 5. **sudo gate.** `sudo edit /etc/privilege.cfg`, flip `allow_admin` from
    `false` to `true`. Unlocks `/home/player/admin` and `/root`.
-6. **Root.** `sudo cd /root`, `cat final_egg.txt`.
-
-Each stage contains one `eggN.txt`. Reading it with `cat` appends the path
-to `state.eggsFound[]`.
+6. **Root + unzip.** `sudo cd /root`, then `unzip final_egg.zip` to extract
+   `final_egg.txt`, then `cat final_egg.txt` for the win.
 
 ### Visual / UX rules
 
@@ -239,9 +267,10 @@ to `state.eggsFound[]`.
   a counter `🥚 eggs N/5 · stage: <stage>`.
 - Command history on arrow-up/arrow-down. `Ctrl+L` or `clear` clears the
   screen.
-- Password prompts and the text editor open as **centered modal windows**
-  with `[cancel]` / `[save]` buttons — the editor also accepts `Ctrl+S`
-  and `Esc`.
+- Password prompts are **inline** in the terminal (not a modal).
+- The text editor opens as a **centered modal** with Save/Cancel buttons.
+  `Ctrl+S` saves; `Esc` cancels.
+- Terminal text is **selectable by mouse** so players can copy commands.
 - Unknown commands print `command not found`. Non-existent paths print
   `No such file or directory`. Locked directories print `cd: '<name>' is
   locked.` with a short hint.

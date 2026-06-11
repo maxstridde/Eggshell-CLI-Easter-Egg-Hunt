@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-**Eggshell** is a browser-based terminal emulator game for CLI education. Players complete a 6-stage easter-egg hunt by learning real shell concepts (`ls`, `cd`, `cat`, `mkdir`, `touch`, `rm`, `edit`, `sudo`, `base64`). It is a *training shell*, not a real one — every concept maps 1:1 to real Linux/macOS behavior.
+**Eggshell** is a browser-based terminal emulator game for CLI education. Players complete a 6-stage easter-egg hunt by learning real shell concepts (`ls`, `cd`, `cat`, `mkdir`, `touch`, `rm`, `edit`, `sudo`, `base64`, `unzip`). It is a *training shell*, not a real one — every concept maps 1:1 to real Linux/macOS behavior.
 
 ## Commands
 
@@ -20,11 +20,11 @@ No test runner is configured. Type-check with: `npx tsc --noEmit`
 
 ```
 src/
-  App.tsx          — terminal UI, inline prompt loop, editor modal, command history
+  App.tsx          — terminal UI, inline prompt loop, editor modal, map panel, command history
   game/
-    fs.ts          — virtual filesystem tree (FsNode), GameState definition, all file content
+    fs.ts          — virtual filesystem tree (FsNode), GameState + Difficulty types, all file content
     commands.ts    — command handlers: execute(input, state, setState, openEditor, passwordPrompt)
-    stage.ts       — stageOf() and stageLabel() shared utilities
+    stage.ts       — stageOf(), stageLabel(), stageHint() — all difficulty-aware
   utils/cn.ts      — clsx + tailwind-merge helper
 ```
 
@@ -38,14 +38,22 @@ User-created files/dirs live in `state.userCreated[]`. File content overrides (f
 
 | Stage | Gate | What it unlocks |
 |---|---|---|
-| 1 OFFLINE | `wifi connect EggHunt-5G` (pw: `yolk-yolk-123`) | `/home/player/documents` |
-| 2 CREATE | `mkdir magic` + `touch magic/token.txt` | `/home/player/secrets` |
-| 3 EDIT | `edit secrets.cfg` → flip `path_to_vault_locked = true` to `false` | `/home/player/vault` |
+| 1 OFFLINE | `wifi connect EggHunt-5G` (pw: `yolk-yolk-123`) | `/home/player/documents` → egg1 |
+| 2 CREATE | `mkdir magic` + `touch magic/token.txt` | `/home/player/secrets` → egg2 |
+| 3 EDIT | `edit secrets.cfg` → flip `path_to_vault_locked = true` to `false` | `/home/player/vault` → egg3 |
 | 4 DECODE | `base64 -d c2VjcmV0LWVnZw==` or `base64 -d sudo_clue.b64` → `secret-egg` | (knowledge gate) |
-| 5 SUDO | `sudo edit /etc/privilege.cfg` → flip `allow_admin = false` to `true` | `/home/player/admin` + `/root` |
-| 6 ROOT | `sudo cd /root`, `cat final_egg.txt` | Win condition |
+| 5 SUDO | `sudo edit /etc/privilege.cfg` → flip `allow_admin = false` to `true` | `/home/player/admin` → egg4 + `/root` |
+| 6 ROOT | `sudo cd /root`, `unzip final_egg.zip`, `cat final_egg.txt` | Win condition → egg5 |
 
 Each stage has an `eggN.txt`; `cat`-ing it appends the path to `state.eggsFound[]`. Win = 5 eggs.
+
+### Difficulty system
+
+`GameState.difficulty: "easy" | "medium" | "hard" | "impossible"`. Set at startup (intro modal) or via `difficulty <level>` command.
+
+- `stageOf(state)` in `stage.ts` returns the stage description filtered by difficulty (full / partial / label / silent).
+- `stageHint(state)` returns a hint string one level easier than the current difficulty, or null if impossible.
+- The map panel (`MapPanel` component in `App.tsx`) is always visible on easy, toggleable on medium/hard, hidden on impossible.
 
 ### Password prompts
 
@@ -53,15 +61,29 @@ Password entry is **inline in the terminal** (not a modal). `passwordPrompt()` s
 
 ### Editor modal
 
-The text editor is a centered modal. `Ctrl+S` / `Cmd+S` saves, `Esc` cancels. `onEdit` callbacks in `fs.ts` validate content and mutate state as a side-effect (tech-debt: see todo.md).
+The text editor is a centered modal. The save shortcut is OS-aware: `Cmd+S` on macOS, `Ctrl+S` on Windows/Linux (detected via `navigator.userAgent`). `Esc` cancels.
+
+`onEdit` callbacks in `fs.ts` now return `{ error: string | null, patch?: Partial<GameState> }` instead of mutating state. The `edit` command handler in `commands.ts` applies the patch.
+
+### Map panel
+
+`MapPanel` in `App.tsx` renders the key directory structure with real-time lock status derived from `locked` predicates. Shows `/home/player` and its children, user-created dirs, `/etc` (if visited), and `/root`. Current directory is highlighted.
+
+### Save / Export system
+
+- `save` command: `btoa(JSON.stringify({ v: 1, ...state }))` — prints the string and copies to clipboard.
+- `load <string>` command: `atob` → parse → validate `v === 1` → `setState` + `setCwd("/home/player")`.
+- `App.tsx` autosaves to `localStorage["eggshell-autosave"]` on every state change (skipping the first render). The intro modal shows `[ restore save ]` if an autosave exists.
 
 ### rm command
 
 `rm` only removes user-created nodes inside `/home/player`. It refuses to delete non-empty directories and has no `-r` flag. Built-in FS files are untouchable.
 
-## Known bugs (see todo.md for full details)
+## Known bugs / open items (see todo.md for full details)
 
-See todo.md — no outstanding structural bugs. Stage logic lives in `src/game/stage.ts`.
+- In-game clue file text is not yet difficulty-aware (deferred to Phase 3).
+- Stage 4 (`knowsSudoPassword`) is never reset if the decoded value changes.
+- Tab autocompletion not yet implemented.
 
 ## Visual / UX constraints
 

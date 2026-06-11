@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { buildFilesystem, FsNode, GameState, initialState } from "./game/fs";
 import { commands, isClear } from "./game/commands";
+import { stageLabel } from "./game/stage";
 
 interface Line {
   text: string;
@@ -14,8 +15,8 @@ interface EditorState {
   onSave: (c: string) => void;
 }
 
-interface PasswordState {
-  title: string;
+interface InlinePromptState {
+  label: string;
   onSubmit: (pwd: string) => void;
   onCancel?: () => void;
 }
@@ -29,7 +30,7 @@ export default function App() {
   const [history, setHistory] = useState<string[]>([]);
   const [historyIdx, setHistoryIdx] = useState<number | null>(null);
   const [editor, setEditor] = useState<EditorState | null>(null);
-  const [password, setPassword] = useState<PasswordState | null>(null);
+  const [inlinePrompt, setInlinePrompt] = useState<InlinePromptState | null>(null);
   const [showIntro, setShowIntro] = useState(true);
   const [sudoActive, setSudoActive] = useState(false);
 
@@ -48,7 +49,7 @@ export default function App() {
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [lines, editor, password]);
+  }, [lines, editor, inlinePrompt]);
 
   const print = (text: string, cls?: string) => {
     setLines((prev) => [...prev, { text, cls }]);
@@ -93,7 +94,7 @@ export default function App() {
       sudoActive,
       setSudoActive,
       passwordPrompt: (onSubmit, title, onCancel) =>
-        setPassword({ title: title ?? "Password:", onSubmit, onCancel }),
+        setInlinePrompt({ label: title ?? "Password:", onSubmit, onCancel }),
     });
   };
 
@@ -130,10 +131,10 @@ export default function App() {
     }
   };
 
-  // Focus input when editor/password close
+  // Focus input when editor/inlinePrompt close
   useEffect(() => {
-    if (!editor && !password) inputRef.current?.focus();
-  }, [editor, password]);
+    if (!editor && !inlinePrompt) inputRef.current?.focus();
+  }, [editor, inlinePrompt]);
 
   const totalEggs = 5;
   const found = state.eggsFound.length;
@@ -160,7 +161,7 @@ export default function App() {
         className="flex-1 overflow-y-auto px-4 py-3 cursor-text"
       >
         {lines.map((ln, i) => (
-          <div key={i} className="whitespace-pre-wrap break-words">
+          <div key={i} className="whitespace-pre-wrap break-words select-text">
             {ln.prompt ? (
               <span className={ln.cls ?? ""}>{ln.prompt}</span>
             ) : (
@@ -169,8 +170,23 @@ export default function App() {
           </div>
         ))}
 
+        {/* inline password prompt */}
+        {inlinePrompt && (
+          <InlinePasswordForm
+            label={inlinePrompt.label}
+            onSubmit={(pwd) => {
+              inlinePrompt.onSubmit(pwd);
+              setInlinePrompt(null);
+            }}
+            onCancel={() => {
+              inlinePrompt.onCancel?.();
+              setInlinePrompt(null);
+            }}
+          />
+        )}
+
         {/* live prompt */}
-        {!editor && !password && (
+        {!editor && !inlinePrompt && !showIntro && (
           <form onSubmit={onSubmit} className="flex items-center gap-2">
             <span className="text-emerald-300 shrink-0">{prompt()}</span>
             <input
@@ -205,33 +221,10 @@ export default function App() {
         />
       )}
 
-      {/* Password modal */}
-      {password && (
-        <PasswordModal
-          title={password.title}
-          onCancel={() => {
-            password.onCancel?.();
-            setPassword(null);
-          }}
-          onSubmit={(pwd) => {
-            password.onSubmit(pwd);
-            setPassword(null);
-          }}
-        />
-      )}
     </div>
   );
 }
 
-function stageLabel(s: GameState): string {
-  if (!s.wifiConnected) return "1-online";
-  if (!s.createdMagicDir || !s.createdTokenFile) return "2-magic";
-  if (!s.secretsUnlocked) return "3-secrets.cfg";
-  if (!s.knowsSudoPassword) return "4-base64";
-  if (!s.adminUnlocked) return "5-sudo";
-  if (!s.finalEggFound) return "6-root";
-  return "done";
-}
 
 function IntroModal({ onClose }: { onClose: () => void }) {
   return (
@@ -328,55 +321,39 @@ function EditorModal({
   );
 }
 
-function PasswordModal({
-  title,
-  onCancel,
+function InlinePasswordForm({
+  label,
   onSubmit,
+  onCancel,
 }: {
-  title: string;
+  label: string;
+  onSubmit: (v: string) => void;
   onCancel: () => void;
-  onSubmit: (pwd: string) => void;
 }) {
   const [value, setValue] = useState("");
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => ref.current?.focus(), []);
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-40">
-      <div className="w-full max-w-md border border-stone-700 bg-stone-950 text-emerald-200 p-5 shadow-2xl">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            onSubmit(value);
-          }}
-        >
-          <div className="text-sm text-stone-300 mb-3">{title}</div>
-          <input
-            ref={ref}
-            type="password"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") onCancel();
-            }}
-            className="w-full bg-black border border-stone-700 px-2 py-1 text-emerald-200 outline-none focus:border-emerald-500 caret-emerald-300"
-          />
-          <div className="flex justify-end gap-2 mt-4">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="px-3 py-1 border border-stone-700 text-stone-300 hover:bg-stone-800"
-            >
-              cancel
-            </button>
-            <button
-              type="submit"
-              className="px-3 py-1 border border-emerald-600 text-emerald-300 hover:bg-emerald-600/20"
-            >
-              ok
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSubmit(value);
+      }}
+      className="flex items-center gap-2"
+    >
+      <span className="text-emerald-300 shrink-0">{label}</span>
+      <input
+        ref={ref}
+        type="password"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") onCancel();
+        }}
+        spellCheck={false}
+        autoComplete="off"
+        className="flex-1 bg-transparent outline-none text-emerald-100 caret-emerald-300"
+      />
+    </form>
   );
 }

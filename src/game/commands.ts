@@ -1,4 +1,5 @@
 import { FsNode, GameState, findNode, resolvePath } from "./fs";
+import { stageOf } from "./stage";
 
 export interface CmdContext {
   root: FsNode;
@@ -25,10 +26,11 @@ const HELP_TEXT = `Available commands:
   cat <file>               print file contents
   mkdir <name>             create a new directory (in cwd)
   touch <name>             create an empty file (in cwd)
+  rm <name>                remove a file or empty directory (in /home/player)
   edit <file>              open the built-in text editor
   wifi list                show available Wi-Fi networks
   wifi connect <SSID>      connect to a Wi-Fi network (asks for password)
-  base64 -d <string>       decode a base64 string
+  base64 -d <string|file>  decode a base64 string or file
   sudo <command...>        run a command as administrator (needs password)
   eggs                     show collected eggs
   stage                    show which stage you are currently on
@@ -36,16 +38,6 @@ const HELP_TEXT = `Available commands:
 Tip: paths starting with / are absolute. Otherwise they are relative to cwd.
      Use '..' to go up one level.`;
 
-function stageOf(s: GameState): string {
-  if (!s.wifiConnected) return "Stage 1 — OFFLINE: connect to Wi-Fi";
-  if (!s.createdMagicDir || !s.createdTokenFile)
-    return "Stage 2 — go home (`cd /home/player`), then `mkdir magic`, `cd magic`, `touch token.txt`";
-  if (!s.secretsUnlocked) return "Stage 3 — edit ~/secrets/secrets.cfg";
-  if (!s.knowsSudoPassword) return "Stage 4 — decode the base64 sudo clue";
-  if (!s.adminUnlocked) return "Stage 5 — sudo edit /etc/privilege.cfg";
-  if (!s.finalEggFound) return "Stage 6 — reach /root and find the final egg";
-  return "🏆 COMPLETE — all eggs collected!";
-}
 
 export const commands: Record<string, CommandHandler> = {
   help: (_, ctx) => ctx.print(HELP_TEXT, "text-emerald-300"),
@@ -279,6 +271,9 @@ export const commands: Record<string, CommandHandler> = {
     }
     const target = resolvePath(ctx.cwd, args[0]);
     const node = findNode(ctx.root, target);
+    const userFile = ctx.state.userCreated.find(
+      (u) => u.type === "file" && u.path === target
+    );
 
     // /etc/privilege.cfg requires sudo
     if (target === "/etc/privilege.cfg" && !ctx.sudoActive) {
@@ -289,21 +284,33 @@ export const commands: Record<string, CommandHandler> = {
       return;
     }
 
-    if (!node || node.kind !== "file") {
-      ctx.print(`edit: ${args[0]}: No such editable file`, "text-red-400");
+    if (!node && !userFile) {
+      ctx.print(`edit: ${args[0]}: No such file or directory`, "text-red-400");
       return;
     }
-    if (!node.editable) {
+    if (node && node.kind === "dir") {
+      ctx.print(`edit: ${args[0]}: Is a directory`, "text-red-400");
+      return;
+    }
+    // FS files need the editable flag; user-created files are always editable
+    if (node && node.kind === "file" && !node.editable) {
       ctx.print(`edit: ${args[0]}: file is read-only`, "text-red-400");
       return;
     }
-    const initial = ctx.state.edits[target] ?? node.content;
+
+    const initial =
+      ctx.state.edits[target] ??
+      (node?.kind === "file" ? node.content : userFile?.content ?? "");
+
     ctx.openEditor(target, initial, (newContent) => {
       let saved = false;
       ctx.setState((s) => {
         const next = { ...s, edits: { ...s.edits, [target]: newContent } };
         const mut: GameState = { ...next };
-        const err = node.onEdit ? node.onEdit(newContent, mut) : null;
+        const err =
+          node && node.kind === "file" && node.onEdit
+            ? node.onEdit(newContent, mut)
+            : null;
         if (err) {
           ctx.print(`edit: ${err}`, "text-red-400");
           return s;
@@ -319,13 +326,23 @@ export const commands: Record<string, CommandHandler> = {
   wifi: (args, ctx) => {
     const sub = args[0];
     if (sub === "list") {
-      // read /etc/wifi.json for flavor
+      const wifiNode = findNode(ctx.root, "/etc/wifi.json");
+      const raw = wifiNode?.kind === "file" ? wifiNode.content : null;
       ctx.print("SSID              SIGNAL  STATUS", "text-emerald-300");
       ctx.print("----------------  ------  ------", "text-emerald-300");
-      ctx.print("NETGEAR-guest       42%   open");
-      ctx.print("EggHunt-5G          88%   encrypted");
-      ctx.print("Starbucks-WiFi      21%   open");
-      ctx.print("hidden-ssid           0%   hidden");
+      if (raw) {
+        try {
+          const data = JSON.parse(raw) as { networks: { ssid: string; signal: number; password: string }[] };
+          for (const n of data.networks) {
+            const ssid = n.ssid.padEnd(18);
+            const signal = `${n.signal}%`.padStart(5);
+            const status = n.password === "???" ? (n.signal === 0 ? "hidden" : "open") : "encrypted";
+            ctx.print(`${ssid}${signal}   ${status}`);
+          }
+        } catch {
+          ctx.print("(error reading wifi data)", "text-red-400");
+        }
+      }
       if (ctx.state.wifiConnected) {
         ctx.print(`\nCurrently connected to: ${ctx.state.wifiSSID}`, "text-emerald-300");
       }
@@ -367,27 +384,77 @@ export const commands: Record<string, CommandHandler> = {
 
   base64: (args, ctx) => {
     if (args[0] !== "-d") {
-      ctx.print("base64: usage — `base64 -d <encoded-string>`", "text-red-400");
+      ctx.print("base64: usage — `base64 -d <encoded-string-or-file>`", "text-red-400");
       return;
     }
-    const encoded = args.slice(1).join(" ");
-    if (!encoded) {
+    const raw = args.slice(1).join(" ");
+    if (!raw) {
       ctx.print("base64: empty input", "text-red-400");
       return;
     }
+
+    // Try to resolve as a file first
+    const filePath = resolvePath(ctx.cwd, raw.trim());
+    const fileNode = findNode(ctx.root, filePath);
+    const userFile = ctx.state.userCreated.find(
+      (u) => u.type === "file" && u.path === filePath
+    );
+
+    let encoded: string;
+    if (fileNode?.kind === "file" || userFile) {
+      encoded =
+        ctx.state.edits[filePath] ??
+        (fileNode?.kind === "file" ? fileNode.content : userFile?.content ?? "");
+      ctx.print(`(reading ${filePath})`, "text-stone-500");
+    } else {
+      encoded = raw;
+    }
+
     try {
-      const decoded = atob(encoded.trim());
+      const decoded = atob(encoded.replace(/\s/g, ""));
       ctx.print(decoded);
       if (decoded === "secret-egg") {
         ctx.setState((s) => ({ ...s, knowsSudoPassword: true }));
-        ctx.print(
-          "That looks like a sudo password. Remember it.",
-          "text-yellow-300"
-        );
+        ctx.print("That looks like a sudo password. Remember it.", "text-yellow-300");
       }
     } catch {
       ctx.print("base64: invalid input", "text-red-400");
     }
+  },
+
+  rm: (args, ctx) => {
+    if (!args[0]) {
+      ctx.print("rm: missing operand", "text-red-400");
+      return;
+    }
+    const target = resolvePath(ctx.cwd, args[0]);
+    if (!target.startsWith("/home/player")) {
+      ctx.print("rm: permission denied (can only remove files inside /home/player)", "text-red-400");
+      return;
+    }
+    const entry = ctx.state.userCreated.find((u) => u.path === target);
+    if (!entry) {
+      if (findNode(ctx.root, target)) {
+        ctx.print(`rm: cannot remove '${args[0]}': Permission denied (system file)`, "text-red-400");
+      } else {
+        ctx.print(`rm: cannot remove '${args[0]}': No such file or directory`, "text-red-400");
+      }
+      return;
+    }
+    if (entry.type === "dir") {
+      const hasChildren = ctx.state.userCreated.some((u) =>
+        u.path.startsWith(target + "/")
+      );
+      if (hasChildren) {
+        ctx.print(`rm: cannot remove '${args[0]}': Directory not empty`, "text-red-400");
+        return;
+      }
+    }
+    ctx.setState((s) => ({
+      ...s,
+      userCreated: s.userCreated.filter((u) => u.path !== target),
+    }));
+    ctx.print(`removed '${target}'`, "text-emerald-300");
   },
 
   sudo: (args, ctx) => {

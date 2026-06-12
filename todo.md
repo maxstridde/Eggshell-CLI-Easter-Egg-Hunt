@@ -36,6 +36,84 @@ Tackle all of the above open bugs plus small UX corrections. No architecture cha
 
 ---
 
+## Phase A2 — Map UX polish & /etc content *(complete)*
+
+- [x] **Fix /etc file indent in map panel (off-by-one depth)**
+  Refactored `renderFileList` → `renderDirContents(dirPath, baseIndent: string)`. `/etc` and `/root` now pass `""` as `baseIndent` (no leading vertical bar), so children render correctly as top-level section entries.
+
+- [x] **Map: support one additional depth level (subdirs inside subdirs)**
+  `renderDirContents` now includes FS subdirs in its item list. If a subdir has been visited, its files are rendered one level deeper (no further recursion). Enables `cron.d/` to appear under `/etc` and expand when visited.
+
+- [x] **Map: remove `~` from header; highlight only the exact current directory**
+  `/home/player` header no longer shows `~`. `isCurrent` now uses `cwd === path` (exact match only) — navigating into `documents/` dims `/home/player` and highlights `documents/`.
+
+- [x] **Add a realistic but stage-irrelevant folder to /etc**
+  Added `cron.d/` to `/etc` in `fs.ts` containing `daily-backup` with a real cron entry. Content is stage/egg/password-neutral.
+
+---
+
+## Phase A3 — Small screen / mobile UX *(complete)*
+
+- [x] **Auto-hide map panel on narrow screens** — sidebar wrapped in `hidden sm:flex`; easy-mode tip banner added inline
+- [x] **Responsive top bar** — verbose label hidden on `xs`; short prompt `~$` shown via `sm:hidden` span
+- [x] **Shorter prompt on narrow viewports** — `player@eggshell:~$` hidden on small, `~$` shown on small
+- [x] **IntroModal responsive padding** — `p-3 sm:p-6`
+- [x] **Font-size step-down on mobile** — `text-[13px] sm:text-[15px]`
+- [x] **`[map]` button in top bar** — opens fullscreen overlay on mobile; hidden on `sm+`; Esc and `[ close ]` both dismiss
+
+### Remaining A3 polish (deferred to Final-A)
+
+- [ ] **Line-height / spacing step-down proportional to font size**
+  At 13 px the current line-height feels loose. Apply `leading-tight` (or a custom `leading-[1.35]`) at `< sm` breakpoint to match the tighter font. Goal: same visual density on mobile as on desktop at 15 px.
+
+---
+
+---
+
+## Phase A-Final — Codebase audit ("pristine" pass)
+
+**Goal:** One dedicated session that reads every corner of the project and produces a findings list here — no fixes yet, just a clean, comprehensive inventory. After the list is reviewed, a follow-up session applies the fixes.
+
+### Scope of the audit
+
+1. **Source code** — `src/App.tsx`, `src/game/fs.ts`, `src/game/commands.ts`, `src/game/stage.ts`, `src/utils/cn.ts`
+   - Dead code, unreachable branches, stale comments
+   - State fields that are set but never read (or read but never set)
+   - Inconsistent flag naming (e.g. mix of `wifiConnected` vs `wifi_connected` style)
+   - Commands that behave differently from their real-shell counterparts without good reason
+   - Any TypeScript errors (`npx tsc --noEmit`)
+   - Missing edge-case handling at system boundaries (user input parsing)
+
+2. **Game logic / puzzle graph**
+   - Every lock predicate: does it reference the correct flag(s)?
+   - Stage 4 `knowsSudoPassword` reset issue (already noted in Bugs section) — confirm scope
+   - `stageOf()` ordering: does it correctly derive stage from locks, not just flags?
+   - Egg-found detection: does `cat` reliably append to `eggsFound` for all 5 eggs?
+   - Win condition: is it checked consistently everywhere it should be?
+
+3. **In-game text**
+   - All clue files, `stage`/`hint` outputs, error messages: are they consistent in tone and accuracy?
+   - Any text that references a feature, path, or flag name that has since changed
+   - Difficulty-appropriate text: which files still show the same text regardless of difficulty (deferred to Phase C, but flag them here)
+
+4. **CLAUDE.md** — check every statement against current code; update any stale descriptions (architecture, data-flow, command list, stage table, known bugs)
+
+5. **README.md** — check for stale install/run instructions, outdated feature descriptions
+
+6. **todo.md** — verify every `[x]` item is actually done in the code; remove or re-open any that aren't
+
+7. **Memory files** — check `/Users/max/.claude/projects/.../memory/` entries for staleness
+
+### Output
+
+Add a new `### Final-A Findings` subsection directly below this block. Each finding gets a `- [ ]` entry with: location (file:line), what's wrong, and severity (low / medium / high). After user review, findings get prioritized and a fix session follows.
+
+### Final-A Findings
+
+*(populated during the audit session)*
+
+---
+
 ## Phase B — Game design & hint system revisions (one session)
 
 - [ ] **Hint system: show hint at current difficulty, not one level easier**

@@ -94,6 +94,13 @@ export function buildFilesystem(): FsNode {
         "issue",
         "EggshellOS 1.0 — Welcome, player. Type `help` to get started.\n"
       ),
+      dir("cron.d", [
+        file(
+          "daily-backup",
+          "# run daily at 02:30 — backs up /var and /etc\n" +
+            "30 2 * * * root /usr/local/bin/backup.sh /var /etc >> /var/log/backup.log 2>&1\n"
+        ),
+      ]),
       file(
         "wifi.json",
         JSON.stringify(

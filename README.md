@@ -184,7 +184,7 @@ entirely, because each locked directory guards the next.
 
 ### Stage 4 — Decode the password
 
-1. `cat sudo_clue.b64` (inside `vault`) — shows the string `c2VjcmV0LWVnZw==`.
+1. `cat sudo_clue.json` (inside `vault`) — shows a JSON object with a `passphrase` field containing `c2VjcmV0LWVnZw==`.
 2. `base64 -d c2VjcmV0LWVnZw==` — outputs **`secret-egg`**.
    This is the `sudo` password.
 

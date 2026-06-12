@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Difficulty, FsNode, GameState, TerminalUser, buildFilesystem, findNode, initialState } from "./game/fs";
 import { commands, isClear } from "./game/commands";
 import { stageLabel } from "./game/stage";
@@ -167,6 +167,7 @@ export default function App() {
   const [showIntro, setShowIntro] = useState(true);
   const [sudoActive, setSudoActive] = useState(false);
   const [hasSave] = useState<boolean>(() => loadAutosave() !== null);
+  const [mobileMapOpen, setMobileMapOpen] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -278,6 +279,15 @@ export default function App() {
     if (!editor && !inlinePrompt) inputRef.current?.focus();
   }, [editor, inlinePrompt]);
 
+  useEffect(() => {
+    if (!mobileMapOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileMapOpen(false);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [mobileMapOpen]);
+
   const totalEggs = 5;
   const found = state.eggsFound.length;
   const showMap =
@@ -285,17 +295,26 @@ export default function App() {
     (state.difficulty !== "impossible" && state.mapVisible);
 
   return (
-    <div className={`h-screen w-full ${theme.bg} ${theme.text} ${theme.filter} font-mono text-[15px] leading-6 flex flex-col overflow-hidden`}>
+    <div className={`h-screen w-full ${theme.bg} ${theme.text} ${theme.filter} font-mono text-[13px] sm:text-[15px] leading-6 flex flex-col overflow-hidden`}>
       {/* top bar */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-stone-800 bg-stone-950/60">
         <div className="flex items-center gap-3">
           <span className="inline-block w-3 h-3 rounded-full bg-red-500/80" />
           <span className="inline-block w-3 h-3 rounded-full bg-yellow-500/80" />
           <span className="inline-block w-3 h-3 rounded-full bg-emerald-500/80" />
-          <span className="ml-3 text-stone-400">eggshell — bash</span>
+          <span className="ml-3 text-stone-400 hidden sm:inline">eggshell — bash</span>
         </div>
-        <div className="text-stone-400 text-sm">
-          🥚 eggs {found}/{totalEggs} · stage: <span className="text-yellow-300">{stageLabel(state)}</span>
+        <div className="flex items-center gap-2 text-stone-400 text-sm">
+          {state.difficulty !== "impossible" && (
+            <button
+              onClick={() => setMobileMapOpen((v) => !v)}
+              className="sm:hidden px-2 py-0.5 border border-stone-700 text-xs hover:border-stone-500"
+            >
+              [map]
+            </button>
+          )}
+          <span>🥚 {found}/{totalEggs}</span>
+          <span className="hidden sm:inline">· stage: <span className="text-yellow-300">{stageLabel(state)}</span></span>
         </div>
       </div>
 
@@ -335,7 +354,10 @@ export default function App() {
 
           {!editor && !inlinePrompt && !showIntro && (
             <form onSubmit={onSubmit} className="flex items-center gap-2">
-              <span className={`${theme.prompt} shrink-0`}>{prompt()}</span>
+              <span className={`${theme.prompt} shrink-0`}>
+                <span className="sm:hidden">{cwd === "/home/player" ? "~" : cwd}{sudoActive ? "#" : "$"}</span>
+                <span className="hidden sm:inline">{prompt()}</span>
+              </span>
               <input
                 ref={inputRef}
                 autoFocus
@@ -351,7 +373,9 @@ export default function App() {
         </div>
 
         {showMap && (
-          <MapPanel state={state} root={root} cwd={cwd} />
+          <div className="hidden sm:block">
+            <MapPanel state={state} root={root} cwd={cwd} />
+          </div>
         )}
       </div>
 
@@ -372,6 +396,24 @@ export default function App() {
             setShowIntro(false);
           }}
         />
+      )}
+
+      {/* Mobile map overlay */}
+      {mobileMapOpen && state.difficulty !== "impossible" && (
+        <div className="fixed inset-0 bg-black/90 z-30 sm:hidden flex flex-col font-mono">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-stone-800 bg-stone-950">
+            <span className="text-stone-400 text-xs">[ MAP ]</span>
+            <button
+              onClick={() => setMobileMapOpen(false)}
+              className="text-stone-400 text-xs px-2 py-1 border border-stone-700 hover:bg-stone-800"
+            >
+              [ close ]
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            <MapPanel state={state} root={root} cwd={cwd} mobile />
+          </div>
+        </div>
       )}
 
       {/* Editor modal */}
@@ -436,8 +478,8 @@ function IntroModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-6 z-50">
-      <div className="max-w-2xl w-full border border-stone-700 bg-stone-950 text-emerald-200 p-6 shadow-2xl">
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-3 sm:p-6 z-50 overflow-y-auto">
+      <div className="max-w-2xl w-full border border-stone-700 bg-stone-950 text-emerald-200 p-3 sm:p-6 shadow-2xl my-auto">
         <div className="text-emerald-300 text-lg mb-2"># Eggshell</div>
         <div className="text-stone-400 mb-4">
           A minimal terminal game for learning the command line.
@@ -550,7 +592,7 @@ function IntroModal({
 
 // --- MapPanel ------------------------------------------------------------
 
-function MapPanel({ state, root, cwd }: { state: GameState; root: FsNode; cwd: string }) {
+function MapPanel({ state, root, cwd, mobile }: { state: GameState; root: FsNode; cwd: string; mobile?: boolean }) {
   const homeNode = findNode(root, "/home/player");
   const homeBuiltinDirs = homeNode?.kind === "dir"
     ? homeNode.children.filter((c) => c.kind === "dir")
@@ -561,33 +603,34 @@ function MapPanel({ state, root, cwd }: { state: GameState; root: FsNode; cwd: s
     ? rootDirNode.locked(state)
     : false;
 
-  const isCurrent = (path: string) => cwd === path || cwd.startsWith(path + "/");
+  // Exact match only — highlights the precise cwd, not parent directories.
+  const isCurrent = (path: string) => cwd === path;
   const isVisited = (path: string) => state.visited.includes(path);
 
-  // Files in a dir from the FS (names without extension, max 4)
-  const getFsFiles = (dirPath: string): string[] => {
+  // Files and subdirs of a directory from the static FS.
+  const getFsChildren = (dirPath: string): { files: string[]; dirs: string[] } => {
     const node = findNode(root, dirPath);
-    if (node?.kind !== "dir") return [];
-    return node.children
-      .filter((c) => c.kind === "file")
-      .map((c) => c.name)
-      .slice(0, 4);
+    if (node?.kind !== "dir") return { files: [], dirs: [] };
+    return {
+      files: node.children.filter((c) => c.kind === "file").map((c) => c.name),
+      dirs: node.children.filter((c) => c.kind === "dir").map((c) => c.name),
+    };
   };
 
-  // User-created items directly inside a path
+  // User-created items directly inside a path.
   const getUserChildren = (parentPath: string) =>
     state.userCreated.filter((u) => {
       const parent = u.path.split("/").slice(0, -1).join("/") || "/";
       return parent === parentPath;
     });
 
-  // User-created dirs directly inside /home/player
+  // User-created dirs directly inside /home/player.
   const userHomeDirs = state.userCreated.filter((u) => {
     const parent = u.path.split("/").slice(0, -1).join("/") || "/";
     return u.type === "dir" && parent === "/home/player";
   });
 
-  // All /home/player subdirectories in display order
+  // All /home/player subdirectories in display order.
   const allHomeDirs = [
     ...homeBuiltinDirs.map((c) => ({
       name: c.name,
@@ -603,34 +646,73 @@ function MapPanel({ state, root, cwd }: { state: GameState; root: FsNode; cwd: s
     })),
   ];
 
-  const renderFileList = (dirPath: string, _isUser: boolean, isLastParent: boolean) => {
+  // Renders files + subdirs for a visited directory.
+  // baseIndent is the vertical-bar prefix carried from the parent (e.g. "│   " or "").
+  // Subdirs that have been visited are expanded one level deeper (no further recursion).
+  const renderDirContents = (dirPath: string, baseIndent: string) => {
     if (!isVisited(dirPath)) return null;
-    const fsFiles = getFsFiles(dirPath);
+
+    const { files: fsFiles, dirs: fsDirs } = getFsChildren(dirPath);
     const userChildren = getUserChildren(dirPath);
+
     const allItems = [
-      ...fsFiles.map((f) => ({ name: f, isUser: false, isDir: false })),
+      ...fsFiles.map((f) => ({ name: f, isUser: false, isDir: false, path: `${dirPath}/${f}` })),
+      ...fsDirs.map((d) => ({ name: d, isUser: false, isDir: true, path: `${dirPath}/${d}` })),
       ...userChildren.map((u) => ({
         name: u.path.split("/").pop()!,
         isUser: true,
         isDir: u.type === "dir",
+        path: u.path,
       })),
-    ].slice(0, 5);
+    ].slice(0, 6);
+
     if (allItems.length === 0) return null;
-    const indent = isLastParent ? "    " : "│   ";
-    return allItems.map((item, idx) => {
-      const conn = idx === allItems.length - 1 ? "└─" : "├─";
-      return (
-        <div key={item.name} className={`pl-1 ${item.isUser ? "text-sky-400" : "text-stone-600"}`}>
-          {indent}{conn} {item.name}{item.isDir ? "/" : ""}
+
+    const rows: React.ReactNode[] = [];
+
+    allItems.forEach((item, idx) => {
+      const isLast = idx === allItems.length - 1;
+      const conn = isLast ? "└─" : "├─";
+      const cls = item.isUser ? "text-sky-400" : "text-stone-600";
+
+      rows.push(
+        <div key={item.path} className={`pl-1 ${cls}`}>
+          {baseIndent}{conn} {item.name}{item.isDir ? "/" : ""}
         </div>
       );
+
+      // Expand visited subdirs one level deeper.
+      if (item.isDir && isVisited(item.path)) {
+        const childIndent = baseIndent + (isLast ? "    " : "│   ");
+        const { files: childFiles } = getFsChildren(item.path);
+        const childUserItems = getUserChildren(item.path);
+        const childItems = [
+          ...childFiles.map((f) => ({ name: f, isUser: false })),
+          ...childUserItems.map((u) => ({ name: u.path.split("/").pop()!, isUser: true })),
+        ].slice(0, 4);
+
+        childItems.forEach((child, ci) => {
+          const childConn = ci === childItems.length - 1 ? "└─" : "├─";
+          const childCls = child.isUser ? "text-sky-400" : "text-stone-600";
+          rows.push(
+            <div key={`${item.path}/${child.name}`} className={`pl-1 ${childCls}`}>
+              {childIndent}{childConn} {child.name}
+            </div>
+          );
+        });
+      }
     });
+
+    return rows;
   };
 
   return (
-    <div className={`w-48 shrink-0 border-l border-stone-800 bg-stone-950 px-3 py-3 text-xs font-mono overflow-y-auto relative ${state.difficulty === "easy" ? "group" : ""}`}>
-      {/* Hover tooltip — easy mode only */}
-      {state.difficulty === "easy" && (
+    <div className={mobile
+      ? "w-full bg-stone-950 px-3 py-3 text-xs font-mono overflow-y-auto relative"
+      : `w-48 shrink-0 border-l border-stone-800 bg-stone-950 px-3 py-3 text-xs font-mono overflow-y-auto relative ${state.difficulty === "easy" ? "group" : ""}`
+    }>
+      {/* Hover tooltip — easy mode only, desktop only */}
+      {!mobile && state.difficulty === "easy" && (
         <div className="hidden group-hover:flex absolute inset-0 bg-stone-950/95 items-center justify-center z-10 p-3">
           <div className="text-stone-400 text-center leading-5">
             navigate with<br />
@@ -640,11 +722,11 @@ function MapPanel({ state, root, cwd }: { state: GameState; root: FsNode; cwd: s
         </div>
       )}
 
-      <div className="text-stone-600 mb-2">[ MAP ]</div>
+      {!mobile && <div className="text-stone-600 mb-2">[ MAP ]</div>}
 
-      {/* /home/player */}
+      {/* /home/player — highlighted only when cwd is exactly /home/player */}
       <div className={isCurrent("/home/player") ? "text-emerald-300" : "text-stone-400"}>
-        ~ /home/player
+        /home/player
       </div>
 
       {/* Subdirs of /home/player */}
@@ -664,18 +746,18 @@ function MapPanel({ state, root, cwd }: { state: GameState; root: FsNode; cwd: s
             <div className={`pl-1 ${cls}`}>
               {conn} {d.name}/{d.locked ? " [locked]" : ""}
             </div>
-            {!d.locked && renderFileList(d.path, d.isUser, isLast)}
+            {!d.locked && renderDirContents(d.path, isLast ? "    " : "│   ")}
           </div>
         );
       })}
 
-      {/* /etc — show if visited */}
+      {/* /etc — show if visited; no leading indent (top-level section) */}
       {state.visited.includes("/etc") && (
         <>
           <div className={`mt-2 ${isCurrent("/etc") ? "text-emerald-300" : "text-stone-400"}`}>
             /etc
           </div>
-          {renderFileList("/etc", false, false)}
+          {renderDirContents("/etc", "")}
         </>
       )}
 
@@ -683,7 +765,7 @@ function MapPanel({ state, root, cwd }: { state: GameState; root: FsNode; cwd: s
       <div className={`mt-2 ${isCurrent("/root") ? "text-emerald-300" : rootLocked ? "text-stone-700" : "text-stone-400"}`}>
         /root{rootLocked ? " [locked]" : ""}
       </div>
-      {!rootLocked && renderFileList("/root", false, true)}
+      {!rootLocked && renderDirContents("/root", "")}
     </div>
   );
 }

@@ -41,7 +41,7 @@ User-created files/dirs live in `state.userCreated[]`. File content overrides (f
 | 1 OFFLINE | `wifi connect EggHunt-5G` (pw: `yolk-yolk-123`) | `/home/player/documents` → egg1 |
 | 2 CREATE | `mkdir magic` + `touch magic/token.txt` | `/home/player/secrets` → egg2 |
 | 3 EDIT | `edit secrets.cfg` → flip `path_to_vault_locked = true` to `false` | `/home/player/vault` → egg3 |
-| 4 DECODE | `base64 -d c2VjcmV0LWVnZw==` or `base64 -d sudo_clue.b64` → `secret-egg` | (knowledge gate) |
+| 4 DECODE | `base64 -d c2VjcmV0LWVnZw==` or decode the `passphrase` field in `sudo_clue.json` → `secret-egg` | (knowledge gate) |
 | 5 SUDO | `sudo edit /etc/privilege.cfg` → flip `allow_admin = false` to `true` | `/home/player/admin` → egg4 + `/root` |
 | 6 ROOT | `sudo cd /root`, `unzip final_egg.zip`, `cat final_egg.txt` | Win condition → egg5 |
 
@@ -67,7 +67,11 @@ The text editor is a centered modal. The save shortcut is OS-aware: `Cmd+S` on m
 
 ### Map panel
 
-`MapPanel` in `App.tsx` renders the key directory structure with real-time lock status derived from `locked` predicates. Shows `/home/player` and its children, user-created dirs, `/etc` (if visited), and `/root`. Current directory is highlighted.
+`MapPanel` in `App.tsx` renders the key directory structure with real-time lock status derived from `locked` predicates. Shows `/home/player` and its children, user-created dirs, `/etc` (if visited), and `/root`. Current directory is highlighted with exact-path matching (`cwd === path`, not `startsWith`).
+
+`renderDirContents(dirPath, baseIndent)` renders files and subdirs inside a visited directory. If a subdir has been visited it expands one level deeper (no further recursion). `baseIndent` carries the vertical-bar prefix from the parent: `"│   "` or `"    "` for home subdirs, `""` for top-level sections (`/etc`, `/root`).
+
+`/etc` contains `cron.d/` (a realistic but stage-irrelevant directory) alongside `hostname`, `issue`, `wifi.json`, and `privilege.cfg`.
 
 ### Save / Export system
 
@@ -81,9 +85,10 @@ The text editor is a centered modal. The save shortcut is OS-aware: `Cmd+S` on m
 
 ## Known bugs / open items (see todo.md for full details)
 
-- In-game clue file text is not yet difficulty-aware (deferred to Phase 3).
+- In-game clue file text is not yet difficulty-aware (deferred to Phase C).
 - Stage 4 (`knowsSudoPassword`) is never reset if the decoded value changes.
 - Tab autocompletion not yet implemented.
+- Small screens (< 640 px) are difficult: map panel (w-48) consumes ~53 % of a phone viewport; prompt string wraps on deep paths. See Phase A3 in todo.md.
 
 ## Visual / UX constraints
 

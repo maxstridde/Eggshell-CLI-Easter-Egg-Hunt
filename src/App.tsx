@@ -40,10 +40,10 @@ function getTheme(terminalUser: TerminalUser): Theme {
     case "admin":
       return {
         bg: "bg-black",
-        text: "text-cyan-200",
-        prompt: "text-cyan-300",
-        caret: "caret-cyan-300",
-        input: "text-cyan-100",
+        text: "text-amber-200",
+        prompt: "text-amber-300",
+        caret: "caret-amber-300",
+        input: "text-amber-100",
         filter: "",
       };
     case "other":
@@ -68,6 +68,21 @@ function getTheme(terminalUser: TerminalUser): Theme {
 }
 
 // --- Save / load helpers -------------------------------------------------
+
+function encodeBase64(obj: unknown): string {
+  const json = JSON.stringify(obj);
+  const bytes = new TextEncoder().encode(json);
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin);
+}
+
+function decodeBase64(str: string): unknown {
+  const bin = atob(str);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
 
 function serializeState(s: GameState) {
   return {
@@ -119,7 +134,7 @@ function loadAutosave(): GameState | null {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return null;
-    const data = JSON.parse(atob(raw));
+    const data = decodeBase64(raw) as Record<string, unknown>;
     if (data.v !== SAVE_VERSION) return null;
     return deserializeState(data);
   } catch {
@@ -129,7 +144,7 @@ function loadAutosave(): GameState | null {
 
 function tryDeserializeSaveString(str: string): GameState | string {
   try {
-    const data = JSON.parse(atob(str.trim()));
+    const data = decodeBase64(str.trim()) as Record<string, unknown>;
     if (data.v !== SAVE_VERSION) return `Incompatible save version (v${data.v})`;
     return deserializeState(data);
   } catch {
@@ -175,7 +190,7 @@ export default function App() {
       return;
     }
     try {
-      localStorage.setItem(SAVE_KEY, btoa(JSON.stringify(serializeState(state))));
+      localStorage.setItem(SAVE_KEY, encodeBase64(serializeState(state)));
     } catch { /* storage may be unavailable */ }
   }, [state]);
 
@@ -555,7 +570,7 @@ function MapPanel({ state, root, cwd }: { state: GameState; root: FsNode; cwd: s
     if (node?.kind !== "dir") return [];
     return node.children
       .filter((c) => c.kind === "file")
-      .map((c) => c.name.replace(/\.[^.]+$/, ""))
+      .map((c) => c.name)
       .slice(0, 4);
   };
 
@@ -595,7 +610,7 @@ function MapPanel({ state, root, cwd }: { state: GameState; root: FsNode; cwd: s
     const allItems = [
       ...fsFiles.map((f) => ({ name: f, isUser: false, isDir: false })),
       ...userChildren.map((u) => ({
-        name: u.path.split("/").pop()!.replace(/\.[^.]+$/, ""),
+        name: u.path.split("/").pop()!,
         isUser: true,
         isDir: u.type === "dir",
       })),

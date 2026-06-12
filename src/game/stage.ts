@@ -26,12 +26,12 @@ export const STAGES: StageDef[] = [
   {
     label: "2-create",
     description:
-      "Stage 2 — CREATE: go home (`cd ~`), then `mkdir magic`, `cd magic`, `touch token.txt`",
+      "Stage 2 — CREATE: go home (`cd ~`), then `mkdir magic`, `cd magic`, `touch token.txt`  (the file must be named token.txt)",
     partial: "Stage 2 — CREATE: build a special directory structure in your home folder",
     hints: {
       verbose:
-        "Go home: `cd ~`. Create a folder: `mkdir magic`. Enter it: `cd magic`. Leave a token: `touch token.txt`. Check with `ls`.",
-      brief: "Create a directory called magic with a file inside it, in /home/player.",
+        "Go home: `cd ~`. Create a folder: `mkdir magic`. Enter it: `cd magic`. Leave a token file: `touch token.txt`. Check with `ls`.",
+      brief: "Create a directory called magic with a token file inside it, in /home/player.",
     },
     gate: (s) => !s.createdMagicDir || !s.createdTokenFile,
   },
@@ -54,8 +54,8 @@ export const STAGES: StageDef[] = [
     partial: "Stage 4 — DECODE: a file in ~/vault contains an encoded clue",
     hints: {
       verbose:
-        "Go to ~/vault: `cd ~/vault`. Look at the .b64 file. Decode the passphrase value: `base64 -d <encoded-string>`. Remember the result.",
-      brief: "Use `base64 -d` on the encoded value inside the .b64 file in ~/vault.",
+        "Go to ~/vault: `cd ~/vault`. Look at sudo_clue.json. Decode the passphrase value: `base64 -d <encoded-string>`. Remember the result.",
+      brief: "Use `base64 -d` on the encoded passphrase inside sudo_clue.json in ~/vault.",
     },
     gate: (s) => !s.knowsSudoPassword,
   },

@@ -256,7 +256,11 @@ export const commands: Record<string, CommandHandler> = {
       visited: s.visited,
       mapVisible: s.mapVisible,
     };
-    const encoded = btoa(JSON.stringify(data));
+    const json = JSON.stringify(data);
+    const utf8Bytes = new TextEncoder().encode(json);
+    let bin = "";
+    for (const b of utf8Bytes) bin += String.fromCharCode(b);
+    const encoded = btoa(bin);
     ctx.print("Save string:", "text-stone-400");
     ctx.print(encoded);
     ctx.print("Use `load <string>` to restore.", "text-stone-400");
@@ -272,7 +276,10 @@ export const commands: Record<string, CommandHandler> = {
       return;
     }
     try {
-      const data = JSON.parse(atob(str));
+      const binStr = atob(str);
+      const bytes = new Uint8Array(binStr.length);
+      for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+      const data = JSON.parse(new TextDecoder().decode(bytes));
       if (data.v !== 1) {
         ctx.print(`load: incompatible save version (got v${data.v}, expected v1)`, "text-red-400");
         return;
@@ -367,11 +374,14 @@ export const commands: Record<string, CommandHandler> = {
     const userDir = ctx.state.userCreated.find(
       (u) => u.type === "dir" && u.path === target
     );
-    if (!node && !userDir) {
+    const userFile = ctx.state.userCreated.find(
+      (u) => u.type === "file" && u.path === target
+    );
+    if (!node && !userDir && !userFile) {
       ctx.print(`cd: no such file or directory: ${args[0]}`, "text-red-400");
       return;
     }
-    if (node && node.kind === "file") {
+    if ((node && node.kind === "file") || userFile) {
       ctx.print(`cd: not a directory: ${args[0]}`, "text-red-400");
       return;
     }
@@ -498,7 +508,7 @@ export const commands: Record<string, CommandHandler> = {
         ...s,
         userCreated: [...s.userCreated, { type: "file", path: target, content: "" }],
       };
-      if (target === "/home/player/magic/token.txt") next.createdTokenFile = true;
+      if (/^\/home\/player\/magic\/token(\.[^/]*)?$/.test(target)) next.createdTokenFile = true;
       return next;
     });
     ctx.print(`created file: ${target}`, "text-emerald-300");

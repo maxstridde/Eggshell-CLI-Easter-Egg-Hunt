@@ -118,7 +118,7 @@ export function buildFilesystem(): FsNode {
           "# on this machine. Incorrect values may have unexpected side effects.\n" +
           "\n" +
           "allow_admin=false\n" +
-          "default_user=player\n",
+          "default_user=player    # default is 'player'; also accepts 'admin'\n",
         {
           editable: true,
           onEdit: (c) => {
@@ -241,7 +241,7 @@ export function buildFilesystem(): FsNode {
               "Config files are the API of the system.\n"
           ),
           file(
-            "sudo_clue.b64",
+            "sudo_clue.json",
             "# .b64 — structured credential token\n" +
               "# field values that are encoded must be decoded before use\n" +
               "# this file can be decoded in full, but only one field matters\n" +

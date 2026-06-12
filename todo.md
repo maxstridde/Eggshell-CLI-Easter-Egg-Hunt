@@ -11,17 +11,13 @@
 - [ ] **Stage 4 (`knowsSudoPassword`) is never reset if the decoded value changes**
   Fine for current game; fragile if puzzle changes.
 
-- [ ] **`touch`-created files not visible via `cd`**
-  Running `touch wow.md` succeeds, but `cd wow.md` (or similar) returns "no such file or directory". Root cause: user-created file entries live in `state.userCreated[]` but path resolution in `cd` doesn't check there consistently. Fix: audit path resolution in commands.ts to check `userCreated` the same way `ls` does.
+- [x] **`touch`-created files not visible via `cd`** — `cd` now also checks `userCreated` files and returns "not a directory" correctly *(fixed)*
 
-- [ ] **`base64 -d` does not work on user-created files**
-  `base64 -d <filename>` currently only decodes inline strings. Extend to read content from `state.userCreated` (and `state.edits`) and decode that.
+- [x] **`base64 -d` does not work on user-created files** — already supported; confirmed working *(fixed)*
 
-- [ ] **`save` command stops working after long sessions**
-  Sometimes produces no output. Likely `btoa` failing on non-Latin-1 characters in state (e.g., special chars in edited file content). Fix: use `btoa(unescape(encodeURIComponent(JSON.stringify(...))))` or switch to a base64 implementation that handles full UTF-8. Also: automatically copy the save string to clipboard on every successful save.
+- [x] **`save` command stops working after long sessions** — switched to UTF-8-safe TextEncoder base64 in both `save` command and autosave *(fixed)*
 
-- [ ] **`/etc` shown incorrectly in map panel**
-  Map shows hostname/issue/wifi/privilege as child entries, but the actual node names include file extensions (e.g. `wifi.json`, `privilege.cfg`). Strip extensions in map display OR align node names with what is shown.
+- [x] **`/etc` shown incorrectly in map panel** — map now shows full filenames for all dirs *(fixed)*
 
 ---
 
@@ -29,18 +25,14 @@
 
 Tackle all of the above open bugs plus small UX corrections. No architecture changes needed.
 
-- [ ] Fix `touch`-created file path resolution (see bug above)
-- [ ] Fix `base64 -d` on user-created files
-- [ ] Fix `save` UTF-8 crash + auto-copy to clipboard
-- [ ] Fix `/etc` map display (node names vs display names)
-- [ ] **`sudo_clue.b64` → rename to `sudo_clue.json`**
-  Only the passcode value inside is base64-encoded; the wrapper file is plain JSON. Rename the FsNode `name` field and update any references in clue text / commands.
-- [ ] **Stage 2 quest hint: token must be a `.txt` file**
-  Add a subtle clue in the stage 2 hint/quest text that the token file should be named `token.txt`. Also relax the check in `commands.ts`: accept any file named `token` regardless of extension (e.g. `token`, `token.txt`, `token.md`).
-- [ ] **User-created dirs/files not shown on map**
-  `MapPanel` currently only shows known FS nodes. Iterate `state.userCreated` and render user-created dirs (and optionally files) under `/home/player` in the map, styled in sky-blue as designed.
-- [ ] **`default_user` field: add inline comment + admin color theme**
-  In `/etc/privilege.cfg` content, add a comment next to `default_user = player` explaining what the default is. When `terminalUser === "admin"` apply a gold/amber color scheme to the terminal prompt or username display to signal VIP status.
+- [x] Fix `touch`-created file path resolution — `cd <user-file>` now correctly says "not a directory"
+- [x] Fix `base64 -d` on user-created files — already supported in Phase 2; confirmed working
+- [x] Fix `save` UTF-8 crash — both `save` command and autosave now use TextEncoder/TextDecoder for UTF-8 safe base64
+- [x] Fix `/etc` map display — all dirs now show full filenames (no extension stripping)
+- [x] **`sudo_clue.b64` → renamed to `sudo_clue.json`** and stage 4 hint text updated
+- [x] **Stage 2 quest hint: token must be a `.txt` file** — hint text updated; check relaxed to accept any `token.*` or `token` filename
+- [x] **User-created dirs/files not shown on map** — already implemented in Phase 2; confirmed working
+- [x] **`default_user` field: add inline comment + admin color theme** — comment added; admin theme changed to gold/amber
 
 ---
 

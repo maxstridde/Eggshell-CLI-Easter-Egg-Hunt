@@ -209,6 +209,46 @@ entirely, because each locked directory guards the next.
 
 ---
 
+## Architecture (for developers)
+
+### How the virtual filesystem works
+
+The filesystem is **pure JavaScript objects — no real files on disk.** `buildFilesystem()` in `src/game/fs.ts` returns a nested `FsNode` tree of `{ kind: "dir", children: [...] }` and `{ kind: "file", content: "..." }` nodes. Commands like `ls`, `cd`, and `cat` traverse this in-memory tree at runtime.
+
+Three layers of "files" coexist:
+
+1. **Built-in FS** — the static tree from `buildFilesystem()`. Immutable.
+2. **`state.edits`** — a `Record<path, string>` of player-edited file contents. `cat` checks here first.
+3. **`state.userCreated`** — an array of `{ type, path, content }` for files/dirs created by the player with `mkdir`/`touch`.
+
+### How game logic is encoded
+
+**Lock predicates** live directly on directory nodes: `locked: (state: GameState) => boolean`. They are evaluated live on every `ls`/`cd` — no event system, no pub/sub. Example:
+
+```ts
+dir("documents", [...], { locked: (s) => !s.wifiConnected })
+dir("secrets",   [...], { locked: (s) => !(s.createdMagicDir && s.createdTokenFile) })
+```
+
+**`onEdit` callbacks** on files return `{ error: string | null, patch: Partial<GameState> }`. Editing `secrets.cfg` and flipping the flag causes `onEdit` to return `{ patch: { secretsUnlocked: true } }`, which the command handler applies via `setState`.
+
+**`GameState`** is a flat React state object (~15 boolean/array fields). All progression is derived from it.
+
+### How hints and stages work
+
+`src/game/stage.ts` holds a `STAGES` array. Each entry has:
+
+- `gate: (s: GameState) => boolean` — true means this stage is still incomplete
+- `description` / `partial` / `hints.verbose` / `hints.brief` — four verbosity tiers matched to difficulty
+
+`activeStage(s)` finds the first incomplete stage. `stageOf(s)` picks which text tier to show.
+
+### Roadmap note — v2.0 Level Builder
+
+The current design couples world content (filesystem nodes, stage text, lock predicates) tightly with the game engine (`commands.ts`, `App.tsx`). For v2.0, the goal is a **world-loader architecture** where each "world" lives in its own file and the engine is world-agnostic. See `todo.md` → Phase D for the full spec.
+
+---
+
 ## Build prompt (for AI / future contributors)
 
 If you are an AI assistant or a developer reading this file and you want to

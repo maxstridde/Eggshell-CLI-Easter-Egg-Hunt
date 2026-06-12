@@ -221,6 +221,11 @@ rebuild or extend **Eggshell**, here is the complete specification.
 - No other runtime dependencies. The terminal is a `<textarea>`-driven
   React component — no `xterm.js`, no heavy shell emulators.
 
+**Built With**
+
+- **Game Engine:** React 19 + Vite + TypeScript + Tailwind CSS
+- **AI Collaborator:** Anthropic's Claude (used for code generation, heavy debugging, and architecture refactoring). All game design decisions, puzzle logic, and product direction were human-directed.
+
 ### File layout
 
 ```
@@ -289,8 +294,3 @@ Suggested first commands in a real shell: `ls -la`, `cd ~`, `pwd`,
 muscle memory.
 
 ---
-
-## License
-
-MIT — do whatever you want with this. Teach it in classrooms. Steal ideas
-for your own game. Just don't call it "AI-powered" unless it actually is.

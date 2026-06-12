@@ -1,5 +1,5 @@
 import { Difficulty, FsNode, GameState, findNode, initialState, resolvePath } from "./fs";
-import { stageHint, stageOf } from "./stage";
+import { STAGES, stageHint, stageOf } from "./stage";
 
 export interface CmdContext {
   root: FsNode;
@@ -16,37 +16,50 @@ export interface CmdContext {
 
 export type CommandHandler = (args: string[], ctx: CmdContext) => void;
 
-const HELP_TEXT = `Available commands:
-  help                     show this message
-  clear / cls              clear the screen
-  pwd                      print current directory
-  ls [path]                list directory contents
-  cd <path>                change directory
-  cat <file>               print file contents
-  mkdir <name>             create a new directory (in cwd)
-  touch <name>             create an empty file (in cwd)
-  rm <name>                remove a file or empty directory (in /home/player)
-  edit <file>              open the built-in text editor
-  wifi list                show available Wi-Fi networks
-  wifi connect <SSID>      connect to a Wi-Fi network (asks for password)
-  base64 -d <string|file>  decode a base64 string or file
-  unzip <file>             extract a zip archive in the current directory
-  sudo <command...>        run a command as administrator (needs password)
-  asciizoo <animal...>     fetch ASCII art from the AsciiZoo service
-  hint                     get a hint for the current stage
-  difficulty [level]       show or set difficulty (easy/medium/hard/impossible)
-  map                      toggle the map panel (medium/hard only)
-  save                     export game progress to a save string
-  load <string>            restore game progress from a save string
-  eggs                     show collected eggs
-  stage                    show current stage objective
+// Returns the player's current progress level (0–5) used to filter help entries.
+function progressLevel(s: GameState): number {
+  if (s.adminUnlocked) return 5;
+  if (s.knowsSudoPassword) return 4;
+  if (s.secretsUnlocked) return 3;
+  if (s.createdMagicDir && s.createdTokenFile) return 2;
+  if (s.wifiConnected) return 1;
+  return 0;
+}
 
-Tip: paths starting with / are absolute. Otherwise they are relative to cwd.
-     Use '..' to go up one level.
-     '~' is a shortcut for /home/player. 'cd' with no argument also goes home.`;
+interface HelpEntry {
+  cmd: string;
+  desc: string;
+  minLevel: number;
+}
+
+const HELP_ENTRIES: HelpEntry[] = [
+  { cmd: "help [all]",               desc: "show this message  (help all: show every command)", minLevel: 0 },
+  { cmd: "clear / cls",              desc: "clear the screen", minLevel: 0 },
+  { cmd: "pwd",                      desc: "print current directory", minLevel: 0 },
+  { cmd: "ls [path]",                desc: "list directory contents", minLevel: 0 },
+  { cmd: "cat <file>",               desc: "print file contents", minLevel: 0 },
+  { cmd: "wifi list",                desc: "show available Wi-Fi networks", minLevel: 0 },
+  { cmd: "wifi connect <SSID>",      desc: "connect to a Wi-Fi network", minLevel: 0 },
+  { cmd: "eggs",                     desc: "show collected eggs", minLevel: 0 },
+  { cmd: "stage",                    desc: "show current stage objective", minLevel: 0 },
+  { cmd: "hint [N]",                 desc: "get a hint for stage N (or current stage)", minLevel: 0 },
+  { cmd: "difficulty [level]",       desc: "show or set difficulty (easy/medium/hard/impossible)", minLevel: 0 },
+  { cmd: "save",                     desc: "export game progress to a save string", minLevel: 0 },
+  { cmd: "load <string>",            desc: "restore game progress from a save string", minLevel: 0 },
+  { cmd: "asciizoo <animal>",        desc: "fetch ASCII art  (asciizoo list for all animals)", minLevel: 0 },
+  { cmd: "cd <path>",                desc: "change directory  (cd with no arg goes home, .. goes up)", minLevel: 1 },
+  { cmd: "mkdir <name>",             desc: "create a new directory (inside /home/player)", minLevel: 2 },
+  { cmd: "touch <name>",             desc: "create an empty file", minLevel: 2 },
+  { cmd: "rm <name>",                desc: "remove a file or empty directory (inside /home/player)", minLevel: 2 },
+  { cmd: "edit <file>",              desc: "open the built-in text editor", minLevel: 3 },
+  { cmd: "base64 -d <string|file>",  desc: "decode a base64 string or file", minLevel: 4 },
+  { cmd: "sudo <command>",           desc: "run a command as administrator (requires password)", minLevel: 4 },
+  { cmd: "unzip <file>",             desc: "extract a zip archive in the current directory", minLevel: 5 },
+  { cmd: "map",                      desc: "toggle the map panel (medium/hard only)", minLevel: 5 },
+];
 
 const IMPOSSIBLE_HELP_TEXT = `Commands available on impossible difficulty:
-  help                     this message
+  help                     this message  (help all shows everything)
   difficulty <level>       change difficulty (you can leave impossible any time)
   clear / cls              clear the screen
   eggs                     show collected eggs
@@ -62,28 +75,50 @@ const ASCII_ANIMALS: Record<string, string> = {
     " (    @\\___\n" +
     " /         O\n" +
     "/   (_____/\n" +
-    "/_____/  U\n",
+    "/_____/   U\n",
   rabbit:
     " (\\(\\  \n" +
     " ( -.-)o\n" +
     " o_(\")(\") \n",
   bird:
-    "    __\n" +
-    "   /  )\n" +
-    "  / / /\n" +
-    " (,/ /\n" +
-    "  \\/\n",
+    "   .--.\n" +
+    "  (o  o)\n" +
+    "   )  (\n" +
+    "  (_><_)\n" +
+    "   |  |\n" +
+    "  /|  |\\\n",
   fish:
     "  ><(((º>\n",
   cow:
-    " ^__^\n" +
-    " (oo)\\_______\n" +
-    " (__)\\       )\\/\\\n" +
-    "     ||----w |\n" +
-    "     ||     ||\n",
+    "  ___\n" +
+    " (o  o)\n" +
+    " /|\\|/|\\\n" +
+    "/ |   | \\\n" +
+    "  ^   ^\n",
+  donkey:
+    "  /\\ /\\\n" +
+    " (  v  ) <(hee-haw!)\n" +
+    "  ) = (\n" +
+    " /| | |\\\n" +
+    " *  ^ ^  *\n",
+  fox:
+    "  /\\   /\\\n" +
+    " ( ^   ^ )\n" +
+    " (  v v  )\n" +
+    " /|=====|\\\n" +
+    "(_|     |_)\n",
+  duck:
+    "  .---.\n" +
+    " ( <  )\n" +
+    "  `---'\n" +
+    " /|   |\\\n" +
+    "  ^   ^\n",
+  frog:
+    "  @ @\n" +
+    " (o o)\n" +
+    " ( ∪ )\n" +
+    "  \\_/\n",
 };
-
-const VALID_ANIMALS = Object.keys(ASCII_ANIMALS).join(", ");
 
 const DIFFICULTY_LEVELS: Difficulty[] = ["easy", "medium", "hard", "impossible"];
 
@@ -95,12 +130,24 @@ function addVisited(ctx: CmdContext, path: string) {
 }
 
 export const commands: Record<string, CommandHandler> = {
-  help: (_, ctx) => {
-    if (ctx.state.difficulty === "impossible") {
+  help: (args, ctx) => {
+    const showAll = args[0] === "all";
+    if (ctx.state.difficulty === "impossible" && !showAll) {
       ctx.print(IMPOSSIBLE_HELP_TEXT, "text-emerald-300");
-    } else {
-      ctx.print(HELP_TEXT, "text-emerald-300");
+      return;
     }
+    const level = showAll ? 99 : progressLevel(ctx.state);
+    const visible = HELP_ENTRIES.filter((e) => e.minLevel <= level);
+    ctx.print("Available commands:", "text-emerald-300");
+    for (const e of visible) {
+      ctx.print(`  ${e.cmd.padEnd(32)} ${e.desc}`);
+    }
+    ctx.print("");
+    if (!showAll) {
+      ctx.print("  help all                         show all commands regardless of stage", "text-stone-400");
+    }
+    ctx.print("");
+    ctx.print("Tip: paths starting with / are absolute. '~' = /home/player. '..' goes up.", "text-stone-400");
   },
 
   start: (_, ctx) => {
@@ -110,7 +157,7 @@ export const commands: Record<string, CommandHandler> = {
     ctx.print("  2. Type `ls` to see what is in your home directory.");
     ctx.print("  3. Type `stage` at any time to see your current objective.");
     ctx.print("");
-    ctx.print("Your first mission: get online. Type `wifi list`.", "text-yellow-300");
+    ctx.print("Your first mission: get online. Try `wifi list`.", "text-yellow-300");
   },
 
   clear: () => { /* handled at UI level */ },
@@ -124,15 +171,30 @@ export const commands: Record<string, CommandHandler> = {
     // silent on impossible (stageOf returns "")
   },
 
-  hint: (_, ctx) => {
+  hint: (args, ctx) => {
     const { difficulty } = ctx.state;
     if (difficulty === "impossible") {
       ctx.print("hint: access denied on impossible difficulty", "text-red-400");
       return;
     }
-    const h = stageHint(ctx.state);
-    if (!h) {
+
+    let stageIndex: number | undefined;
+    if (args[0]) {
+      const n = parseInt(args[0], 10);
+      if (isNaN(n) || n < 1 || n > STAGES.length) {
+        ctx.print(`hint: invalid stage number '${args[0]}' — use 1 to ${STAGES.length}`, "text-red-400");
+        return;
+      }
+      stageIndex = n - 1;
+    }
+
+    const h = stageHint(ctx.state, stageIndex);
+    if (!h && stageIndex === undefined) {
       ctx.print("No hints needed — all eggs found!", "text-yellow-300");
+      return;
+    }
+    if (!h) {
+      ctx.print("hint: no hint available for that stage", "text-stone-400");
       return;
     }
     ctx.print(h, "text-yellow-300");
@@ -184,19 +246,23 @@ export const commands: Record<string, CommandHandler> = {
       secretsUnlocked: s.secretsUnlocked,
       knowsSudoPassword: s.knowsSudoPassword,
       adminUnlocked: s.adminUnlocked,
+      rootEntered: s.rootEntered,
       finalEggFound: s.finalEggFound,
       edits: s.edits,
       userCreated: s.userCreated,
       sudoTries: s.sudoTries,
       difficulty: s.difficulty,
+      terminalUser: s.terminalUser,
       visited: s.visited,
       mapVisible: s.mapVisible,
     };
     const encoded = btoa(JSON.stringify(data));
-    ctx.print("Save string (copied to clipboard):", "text-stone-400");
+    ctx.print("Save string:", "text-stone-400");
     ctx.print(encoded);
     ctx.print("Use `load <string>` to restore.", "text-stone-400");
-    navigator.clipboard?.writeText(encoded).catch(() => {});
+    navigator.clipboard?.writeText(encoded).catch(() => {
+      ctx.print("(clipboard unavailable — copy the string above manually)", "text-stone-500");
+    });
   },
 
   load: (args, ctx) => {
@@ -221,11 +287,13 @@ export const commands: Record<string, CommandHandler> = {
         secretsUnlocked: data.secretsUnlocked ?? false,
         knowsSudoPassword: data.knowsSudoPassword ?? false,
         adminUnlocked: data.adminUnlocked ?? false,
+        rootEntered: data.rootEntered ?? false,
         finalEggFound: data.finalEggFound ?? false,
         edits: data.edits ?? {},
         userCreated: data.userCreated ?? [],
         sudoTries: data.sudoTries ?? 0,
         difficulty: data.difficulty ?? "easy",
+        terminalUser: data.terminalUser ?? "player",
         visited: data.visited ?? ["/home/player"],
         mapVisible: data.mapVisible ?? false,
       }));
@@ -308,18 +376,16 @@ export const commands: Record<string, CommandHandler> = {
       return;
     }
     if (node && node.kind === "dir" && node.locked && node.locked(ctx.state)) {
-      if (target === "/root" && !ctx.sudoActive) {
-        ctx.print(
-          "cd: permission denied: /root  (try `sudo cd /root`)",
-          "text-red-400"
-        );
-        return;
-      }
-      ctx.print(
-        `cd: '${args[0]}' is locked. ${node.hint ?? ""}`,
-        "text-red-400"
-      );
+      ctx.print(`cd: '${args[0] ?? target}' is locked`, "text-red-400");
       return;
+    }
+    // /root requires sudo for the first entry even after adminUnlocked
+    if (target === "/root" && !ctx.sudoActive && !ctx.state.rootEntered) {
+      ctx.print("cd: /root: permission denied", "text-red-400");
+      return;
+    }
+    if (target === "/root" && ctx.sudoActive && !ctx.state.rootEntered) {
+      ctx.setState((s) => ({ ...s, rootEntered: true }));
     }
     ctx.setCwd(target);
     addVisited(ctx, target);
@@ -331,6 +397,15 @@ export const commands: Record<string, CommandHandler> = {
       return;
     }
     const target = resolvePath(ctx.cwd, args[0]);
+
+    // Binary file guard
+    if (target.endsWith(".zip")) {
+      ctx.print("PK   ¥ÓX«Íï", "text-stone-500");
+      ctx.print("ø²Ô ÃµBÑxäÇ.ú»...", "text-stone-500");
+      ctx.print("(binary file — output truncated)", "text-stone-500");
+      return;
+    }
+
     const node = findNode(ctx.root, target);
     const userFile = ctx.state.userCreated.find(
       (u) => u.type === "file" && u.path === target
@@ -372,7 +447,7 @@ export const commands: Record<string, CommandHandler> = {
     }
     const target = resolvePath(ctx.cwd, args[0]);
     if (!target.startsWith("/home/player")) {
-      ctx.print("mkdir: permission denied (stay inside /home/player for now)", "text-red-400");
+      ctx.print("mkdir: permission denied", "text-red-400");
       return;
     }
     const parentPath = target.split("/").slice(0, -1).join("/") || "/";
@@ -404,7 +479,7 @@ export const commands: Record<string, CommandHandler> = {
     }
     const target = resolvePath(ctx.cwd, args[0]);
     if (!target.startsWith("/home/player")) {
-      ctx.print("touch: permission denied (stay inside /home/player for now)", "text-red-400");
+      ctx.print("touch: permission denied", "text-red-400");
       return;
     }
     const parentPath = target.split("/").slice(0, -1).join("/") || "/";
@@ -412,7 +487,6 @@ export const commands: Record<string, CommandHandler> = {
     const parentIsUserDir = ctx.state.userCreated.some((u) => u.type === "dir" && u.path === parentPath);
     if (!parentInFs && !parentIsUserDir) {
       ctx.print(`touch: cannot touch '${args[0]}': No such file or directory`, "text-red-400");
-      ctx.print(`  Hint: create the parent directory first with \`mkdir\`.`, "text-yellow-300");
       return;
     }
     if (findNode(ctx.root, target) || ctx.state.userCreated.some((u) => u.path === target)) {
@@ -442,10 +516,7 @@ export const commands: Record<string, CommandHandler> = {
     );
 
     if (target === "/etc/privilege.cfg" && !ctx.sudoActive) {
-      ctx.print(
-        "edit: permission denied: /etc/privilege.cfg  (try `sudo edit /etc/privilege.cfg`)",
-        "text-red-400"
-      );
+      ctx.print("edit: /etc/privilege.cfg: permission denied", "text-red-400");
       return;
     }
 
@@ -521,11 +592,7 @@ export const commands: Record<string, CommandHandler> = {
         ctx.passwordPrompt((pwd) => {
           if (pwd === "yolk-yolk-123") {
             ctx.setState((s) => ({ ...s, wifiConnected: true, wifiSSID: "EggHunt-5G" }));
-            ctx.print("connected to EggHunt-5G — you are ONLINE.", "text-emerald-300");
-            ctx.print(
-              "New paths are now visible. Try `ls` and explore ~/documents.",
-              "text-yellow-300"
-            );
+            ctx.print("Connected to EggHunt-5G — you are ONLINE.", "text-emerald-300");
           } else {
             ctx.print("wifi: authentication failed — wrong password", "text-red-400");
           }
@@ -534,7 +601,7 @@ export const commands: Record<string, CommandHandler> = {
       }
       if (ssid === "NETGEAR-guest" || ssid === "Starbucks-WiFi") {
         ctx.print(
-          `wifi: ${ssid} has no internet access in this simulation. Try a different network.`,
+          `wifi: ${ssid} has no internet access in this simulation.`,
           "text-yellow-300"
         );
         return;
@@ -563,11 +630,13 @@ export const commands: Record<string, CommandHandler> = {
     );
 
     let encoded: string;
+    let isFileDecode = false;
     if (fileNode?.kind === "file" || userFile) {
       encoded =
         ctx.state.edits[filePath] ??
         (fileNode?.kind === "file" ? fileNode.content : userFile?.content ?? "");
       ctx.print(`(reading ${filePath})`, "text-stone-500");
+      isFileDecode = true;
     } else {
       encoded = raw;
     }
@@ -577,10 +646,22 @@ export const commands: Record<string, CommandHandler> = {
       ctx.print(decoded);
       if (decoded === "secret-egg") {
         ctx.setState((s) => ({ ...s, knowsSudoPassword: true }));
-        ctx.print("That looks like a sudo password. Remember it.", "text-yellow-300");
       }
     } catch {
-      ctx.print("base64: invalid input", "text-red-400");
+      if (isFileDecode) {
+        // Strip to base64 chars only and decode whatever remains
+        const b64only = encoded.replace(/[^A-Za-z0-9+/]/g, "");
+        if (b64only.length >= 4) {
+          try {
+            const padded = b64only + "=".repeat((4 - (b64only.length % 4)) % 4);
+            ctx.print(atob(padded));
+            return;
+          } catch {
+            // fall through
+          }
+        }
+      }
+      ctx.print("base64: invalid base64 input", "text-red-400");
     }
   },
 
@@ -591,7 +672,7 @@ export const commands: Record<string, CommandHandler> = {
     }
     const target = resolvePath(ctx.cwd, args[0]);
     if (!target.startsWith("/home/player")) {
-      ctx.print("rm: permission denied (can only remove files inside /home/player)", "text-red-400");
+      ctx.print("rm: permission denied", "text-red-400");
       return;
     }
     const entry = ctx.state.userCreated.find((u) => u.path === target);
@@ -643,26 +724,24 @@ export const commands: Record<string, CommandHandler> = {
       }
       const eggContent =
         "🏆 EGG #5 — 'THE PRIZE' 🏆\n" +
-        "You made it to /root. Congratulations — you are now officially\n" +
-        "a CLI power-user.\n" +
+        "You made it to /root. Congratulations.\n" +
         "\n" +
-        "What you learned:\n" +
-        "  • ls / cd / pwd / cat          — filesystem navigation\n" +
-        "  • mkdir / touch                 — creating paths\n" +
-        "  • edit                          — a built-in text editor\n" +
-        "  • wifi list / wifi connect      — network management\n" +
-        "  • base64 -d                     — decoding\n" +
-        "  • unzip                         — extracting archives\n" +
-        "  • sudo                          — privilege escalation\n" +
+        "Skills demonstrated:\n" +
+        "  ls · cd · pwd · cat · mkdir · touch · rm\n" +
+        "  edit · wifi · base64 -d · unzip · sudo\n" +
         "\n" +
-        "Thanks for playing Eggshell. Now go try a real shell!\n";
+        "Now go try a real shell:\n" +
+        "  Windows: install WSL — open the Ubuntu app\n" +
+        "  macOS:   Applications → Utilities → Terminal\n" +
+        "  Linux:   you're already home\n" +
+        "\n" +
+        "Type `eggs` to confirm your collection.\n";
       ctx.print("Archive:  final_egg.zip", "text-stone-400");
       ctx.print("  inflating: final_egg.txt", "text-emerald-300");
       ctx.setState((s) => ({
         ...s,
         userCreated: [...s.userCreated, { type: "file", path: outPath, content: eggContent }],
       }));
-      ctx.print("Now run `cat final_egg.txt` to read it.", "text-yellow-300");
       return;
     }
     ctx.print(`unzip: ${args[0]}: no handler for this archive`, "text-red-400");
@@ -694,16 +773,21 @@ export const commands: Record<string, CommandHandler> = {
   asciizoo: (args, ctx) => {
     if (args.length === 0) {
       ctx.print("asciizoo: usage — `asciizoo <animal> [animal2 ...]`", "text-red-400");
-      ctx.print(`  available animals: ${VALID_ANIMALS}`, "text-stone-400");
+      ctx.print("  run `asciizoo list` to see all available animals", "text-stone-400");
+      return;
+    }
+    if (args[0] === "list" || args[0] === "help") {
+      ctx.print("asciizoo v0.5.0 — available animals:", "text-stone-400");
+      ctx.print("  " + Object.keys(ASCII_ANIMALS).join(", "));
       return;
     }
     const unknown = args.filter((a) => !ASCII_ANIMALS[a.toLowerCase()]);
     if (unknown.length > 0) {
       ctx.print(`asciizoo: unknown animal(s): ${unknown.join(", ")}`, "text-red-400");
-      ctx.print(`  available: ${VALID_ANIMALS}`, "text-stone-400");
+      ctx.print("  try 'asciizoo list'", "text-stone-400");
       return;
     }
-    ctx.print("asciizoo v0.4.1 — ASCII Zoo Service Client", "text-stone-400");
+    ctx.print("asciizoo v0.5.0 — ASCII Zoo Service Client", "text-stone-400");
     ctx.print("bundling request → animals.zip … sending to ascii-zoo.local …", "text-stone-400");
     ctx.print("");
     for (const raw of args) {

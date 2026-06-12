@@ -3,6 +3,7 @@
 // Locked directories cannot be `cd`'d into until a predicate returns true.
 
 export type Difficulty = "easy" | "medium" | "hard" | "impossible";
+export type TerminalUser = "player" | "admin" | "other";
 
 export type FsNode =
   | {
@@ -32,6 +33,7 @@ export interface GameState {
   secretsUnlocked: boolean; // via editing secrets.cfg
   knowsSudoPassword: boolean; // decoded from base64 clue
   adminUnlocked: boolean; // via editing /etc/privilege.cfg
+  rootEntered: boolean; // set after first successful sudo cd /root
   eggsFound: string[]; // paths of discovered eggs
   finalEggFound: boolean;
   // raw file overrides from edits
@@ -40,6 +42,7 @@ export interface GameState {
   userCreated: { type: "dir" | "file"; path: string; content?: string }[];
   sudoTries: number;
   difficulty: Difficulty;
+  terminalUser: TerminalUser; // set by default_user in /etc/privilege.cfg
   visited: string[]; // directories the player has ls-ed or cd-ed into
   mapVisible: boolean; // medium/hard: whether map panel is toggled on
 }
@@ -52,12 +55,14 @@ export const initialState: GameState = {
   secretsUnlocked: false,
   knowsSudoPassword: false,
   adminUnlocked: false,
+  rootEntered: false,
   eggsFound: [],
   finalEggFound: false,
   edits: {},
   userCreated: [],
   sudoTries: 0,
   difficulty: "easy",
+  terminalUser: "player",
   visited: ["/home/player"],
   mapVisible: false,
 };
@@ -106,16 +111,26 @@ export function buildFilesystem(): FsNode {
       ),
       file(
         "privilege.cfg",
-        "# /etc/privilege.cfg — requires sudo\n" +
-          "# Change `allow_admin=false` to `allow_admin=true` to unlock the /admin directory.\n" +
+        "# /etc/privilege.cfg — system privilege configuration\n" +
+          "# This file requires elevated access to modify.\n" +
+          "#\n" +
+          "# Settings here control which accounts hold administrative rights\n" +
+          "# on this machine. Incorrect values may have unexpected side effects.\n" +
+          "\n" +
           "allow_admin=false\n" +
           "default_user=player\n",
         {
           editable: true,
-          onEdit: (c) => ({
-            error: null,
-            patch: { adminUnlocked: /allow_admin\s*=\s*true/i.test(c) },
-          }),
+          onEdit: (c) => {
+            const adminUnlocked = /allow_admin\s*=\s*true/i.test(c);
+            const userMatch = c.match(/default_user\s*=\s*(\S+)/i);
+            const terminalUser: TerminalUser = userMatch
+              ? (["player", "admin"].includes(userMatch[1])
+                  ? (userMatch[1] as TerminalUser)
+                  : "other")
+              : "player";
+            return { error: null, patch: { adminUnlocked, terminalUser } };
+          },
         }
       ),
     ]),
@@ -128,37 +143,39 @@ export function buildFilesystem(): FsNode {
             "You are sitting at a fresh terminal. Your mission:\n" +
             "find the 5 hidden easter eggs scattered through this system.\n" +
             "\n" +
-            "Useful commands to try:\n" +
+            "Useful commands:\n" +
             "  help        — show the command list\n" +
             "  ls          — list files in the current directory\n" +
-            "  cd <dir>    — change directory (cd .. goes up)\n" +
             "  cat <file>  — print a file\n" +
             "  pwd         — print current path\n" +
             "\n" +
-            "Stage 1: You are OFFLINE. Find a way to connect to Wi-Fi.\n" +
-            "         Hint: the system keeps network info in /etc/wifi.json.\n" +
-            "         Try: `wifi list` then `wifi connect <SSID>`.\n"
+            "Something is preventing you from exploring further.\n" +
+            "The system keeps network information in /etc.\n"
         ),
         file(
           "notes.txt",
           "Player's notebook:\n" +
-            "- First egg is said to be in ~/documents/egg1.txt\n" +
-            "- But documents is LOCKED until you are ONLINE.\n" +
-            "  Try `wifi list` to find a network to join.\n" +
-            "- There's a strange note about a 'magic' directory.\n" +
-            "  It has to be created right here, in your home folder /home/player.\n" +
-            "  And there must be a file called token.txt inside it.\n" +
-            "  Then something will unlock...\n"
+            "- First egg is said to be in ~/documents/\n" +
+            "  But that directory is LOCKED.\n" +
+            "  You need to be connected to a network to enter.\n" +
+            "- Somewhere in this home folder, a special directory must be created.\n" +
+            "  And something left inside it — like proof you were there.\n" +
+            "  Only then will a certain door open...\n"
         ),
         dir("documents", [
           file(
             "egg1.txt",
             "🥚 EGG #1 FOUND — 'The Starter' 🥚\n" +
-              "You connected to Wi-Fi and navigated to this directory.\n" +
-              "That's ls, cd, and wifi connect — three real shell skills.\n" +
+              "You connected to a network and found your way here.\n" +
               "\n" +
-              "Next clue:\n" +
-              "  Look at the file `clue2.riddle` in this same folder.\n"
+              "Skills demonstrated:\n" +
+              "  wifi list / wifi connect — network management\n" +
+              "  ls                       — list directory contents\n" +
+              "  cd                       — navigate the filesystem\n" +
+              "\n" +
+              "On real machines, /etc/network/interfaces or NetworkManager\n" +
+              "handle this. On macOS: System Settings → Wi-Fi.\n" +
+              "Config files store secrets. Now you know.\n"
           ),
           file(
             "clue2.riddle",
@@ -166,26 +183,15 @@ export function buildFilesystem(): FsNode {
               "  'Deep in the player's home there is a hollow.\n" +
               "   Fill it with a folder called magic,\n" +
               "   and inside that folder, leave a token.\n" +
-              "   Only then will the secrets room open its gates.'\n" +
-              "\n" +
-              "--- Step-by-step ---\n" +
-              "  1. Go home first:          cd /home/player\n" +
-              "  2. Create the folder:      mkdir magic\n" +
-              "  3. Step inside:            cd magic\n" +
-              "  4. Leave your token:       touch token.txt\n" +
-              "  5. Go back and look:       cd ..   then   ls\n" +
-              "\n" +
-              "You should now see ~/secrets unlocked. Good luck.\n"
+              "   Only then will the secrets room open its gates.'\n"
           ),
         ], {
           locked: (s) => !s.wifiConnected,
-          hint: "[locked — requires internet]",
         }),
         dir("secrets", [
           file(
             "secrets.cfg",
-            "# secrets.cfg — controls access to deeper rooms.\n" +
-              "# Change `path_to_vault_locked = true` to `false` below.\n" +
+            "# secrets.cfg — access control for protected directories\n" +
               "\n" +
               "path_to_vault_locked = true\n" +
               "debug_mode = off\n",
@@ -201,12 +207,13 @@ export function buildFilesystem(): FsNode {
             "egg2.txt",
             "🥚 EGG #2 FOUND — 'The Builder' 🥚\n" +
               "You created a directory and a file from scratch.\n" +
-              "mkdir and touch are the two most basic building tools of any shell.\n" +
               "\n" +
-              "Next clue:\n" +
-              "  You're now inside ~/secrets. There is a config file here: secrets.cfg.\n" +
-              "  It controls whether ~/vault is locked or not.\n" +
-              "  Open it with `edit secrets.cfg` and change the value to unlock the vault.\n"
+              "Skills demonstrated:\n" +
+              "  mkdir  — create a directory\n" +
+              "  touch  — create an empty file\n" +
+              "\n" +
+              "Every project starts this way.\n" +
+              "Filesystems are built one node at a time.\n"
           ),
           file(
             "editor-tips.txt",
@@ -218,72 +225,83 @@ export function buildFilesystem(): FsNode {
           ),
         ], {
           locked: (s) => !(s.createdMagicDir && s.createdTokenFile),
-          hint: "[locked — create /home/player/magic/ and /home/player/magic/token.txt first]",
         }),
         dir("vault", [
           file(
             "egg3.txt",
             "🥚 EGG #3 FOUND — 'The Editor' 🥚\n" +
-              "You just edited a config file and flipped a boolean flag.\n" +
-              "That's how real systems — nginx, sshd, sudoers — get configured.\n" +
+              "You opened a config file and changed a value.\n" +
               "\n" +
-              "Next clue:\n" +
-              "  There is a file called `sudo_clue.b64` in this directory.\n" +
-              "  Read it with `cat sudo_clue.b64`. It contains a password encoded in base64.\n" +
-              "  Use `base64 -d <text>` to decode it. You will need that password for `sudo`.\n"
+              "Skills demonstrated:\n" +
+              "  edit  — modify a text file in the built-in editor\n" +
+              "\n" +
+              "Real systems work exactly like this:\n" +
+              "/etc/nginx/nginx.conf, ~/.ssh/config, /etc/fstab —\n" +
+              "a line changed, a service restarted.\n" +
+              "Config files are the API of the system.\n"
           ),
           file(
             "sudo_clue.b64",
-            "c2VjcmV0LWVnZw==\n"
+            "# .b64 — structured credential token\n" +
+              "# field values that are encoded must be decoded before use\n" +
+              "# this file can be decoded in full, but only one field matters\n" +
+              "\n" +
+              "{\n" +
+              "  \"token_type\":  \"system-credential\",\n" +
+              "  \"issued_by\":   \"eggshell-vault\",\n" +
+              "  \"expires\":     \"never\",\n" +
+              "  \"note\":        \"you can read the metadata just fine — clever, right?\",\n" +
+              "  \"passphrase\":  \"c2VjcmV0LWVnZw==\"\n" +
+              "}\n"
           ),
           file(
             "how-to-sudo.txt",
             "=== sudo ===\n" +
               "`sudo` runs a single command as the administrator (root).\n" +
               "Syntax:  sudo <command> <args...>\n" +
-              "You will be asked for the admin password. The password is\n" +
-              "hidden somewhere in this vault — find the base64 clue and\n" +
-              "decode it with: base64 -d <encoded-string>\n" +
               "\n" +
-              "Try:  sudo edit /etc/privilege.cfg\n"
+              "You will be asked for the admin password.\n" +
+              "The credential is stored somewhere in this vault.\n" +
+              "Look around — encoded things can be decoded.\n"
           ),
         ], {
           locked: (s) => !s.secretsUnlocked,
-          hint: "[locked — edit secrets.cfg to unlock]",
         }),
         dir("admin", [
           file(
             "egg4.txt",
             "🥚 EGG #4 FOUND — 'The Administrator' 🥚\n" +
-              "You used sudo to modify a system file. That's privilege escalation —\n" +
-              "the core concept behind most real sysadmin work.\n" +
+              "You ran a command as root and changed a system-level config.\n" +
               "\n" +
-              "Final clue:\n" +
-              "  The last egg is packed inside /root/final_egg.zip\n" +
-              "  Get there first: `sudo cd /root`\n" +
-              "  Then extract it: `unzip final_egg.zip`\n" +
-              "  (In this game `sudo cd /root` works. Real shells don't allow that —\n" +
-              "   but we're being friendly.)\n"
+              "Skills demonstrated:\n" +
+              "  sudo  — execute as administrator\n" +
+              "  edit  — modify a protected file\n" +
+              "\n" +
+              "In real systems, sudo gives temporary root access.\n" +
+              "Every Linux server relies on this — from installing packages\n" +
+              "to editing /etc/sudoers itself.\n" +
+              "You now understand the basics of privilege escalation.\n"
           ),
           file(
             "admin-note.txt",
             "You are in /admin — a directory that required editing /etc/privilege.cfg.\n" +
-            "Real-world equivalents: /etc/sudoers, group policies, ACLs, etc.\n"
+              "Real-world equivalents: /etc/sudoers, group policies, ACLs.\n" +
+              "\n" +
+              "Admin access here grants elevated capabilities.\n" +
+              "The root of this machine may now be within reach.\n"
           ),
         ], {
           locked: (s) => !s.adminUnlocked,
-          hint: "[locked — requires allow_admin=true in /etc/privilege.cfg]",
         }),
       ]),
     ]),
     dir("root", [
       file(
         "final_egg.zip",
-        "[binary archive — use `unzip final_egg.zip` to extract]\n"
+        "[binary archive]\n"
       ),
     ], {
       locked: (s) => !s.adminUnlocked,
-      hint: "[locked — root only. use sudo]",
     }),
   ]);
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Difficulty, FsNode, GameState, buildFilesystem, findNode, initialState } from "./game/fs";
+import { Difficulty, FsNode, GameState, TerminalUser, buildFilesystem, findNode, initialState } from "./game/fs";
 import { commands, isClear } from "./game/commands";
 import { stageLabel } from "./game/stage";
 
@@ -24,6 +24,51 @@ interface InlinePromptState {
   onCancel?: () => void;
 }
 
+// --- Theme ---------------------------------------------------------------
+
+type Theme = {
+  bg: string;
+  text: string;
+  prompt: string;
+  caret: string;
+  input: string;
+  filter: string;
+};
+
+function getTheme(terminalUser: TerminalUser): Theme {
+  switch (terminalUser) {
+    case "admin":
+      return {
+        bg: "bg-black",
+        text: "text-cyan-200",
+        prompt: "text-cyan-300",
+        caret: "caret-cyan-300",
+        input: "text-cyan-100",
+        filter: "",
+      };
+    case "other":
+      return {
+        bg: "bg-zinc-950",
+        text: "text-zinc-300",
+        prompt: "text-zinc-400",
+        caret: "caret-zinc-300",
+        input: "text-zinc-200",
+        filter: "grayscale",
+      };
+    default:
+      return {
+        bg: "bg-black",
+        text: "text-emerald-200",
+        prompt: "text-emerald-300",
+        caret: "caret-emerald-300",
+        input: "text-emerald-100",
+        filter: "",
+      };
+  }
+}
+
+// --- Save / load helpers -------------------------------------------------
+
 function serializeState(s: GameState) {
   return {
     v: SAVE_VERSION,
@@ -35,11 +80,13 @@ function serializeState(s: GameState) {
     secretsUnlocked: s.secretsUnlocked,
     knowsSudoPassword: s.knowsSudoPassword,
     adminUnlocked: s.adminUnlocked,
+    rootEntered: s.rootEntered,
     finalEggFound: s.finalEggFound,
     edits: s.edits,
     userCreated: s.userCreated,
     sudoTries: s.sudoTries,
     difficulty: s.difficulty,
+    terminalUser: s.terminalUser,
     visited: s.visited,
     mapVisible: s.mapVisible,
   };
@@ -56,11 +103,13 @@ function deserializeState(data: Record<string, unknown>): GameState {
     secretsUnlocked: (data.secretsUnlocked as boolean) ?? false,
     knowsSudoPassword: (data.knowsSudoPassword as boolean) ?? false,
     adminUnlocked: (data.adminUnlocked as boolean) ?? false,
+    rootEntered: (data.rootEntered as boolean) ?? false,
     finalEggFound: (data.finalEggFound as boolean) ?? false,
     edits: (data.edits as Record<string, string>) ?? {},
     userCreated: (data.userCreated as GameState["userCreated"]) ?? [],
     sudoTries: (data.sudoTries as number) ?? 0,
     difficulty: (data.difficulty as Difficulty) ?? "easy",
+    terminalUser: (data.terminalUser as TerminalUser) ?? "player",
     visited: (data.visited as string[]) ?? ["/home/player"],
     mapVisible: (data.mapVisible as boolean) ?? false,
   };
@@ -77,6 +126,18 @@ function loadAutosave(): GameState | null {
     return null;
   }
 }
+
+function tryDeserializeSaveString(str: string): GameState | string {
+  try {
+    const data = JSON.parse(atob(str.trim()));
+    if (data.v !== SAVE_VERSION) return `Incompatible save version (v${data.v})`;
+    return deserializeState(data);
+  } catch {
+    return "Invalid save string";
+  }
+}
+
+// --- App -----------------------------------------------------------------
 
 export default function App() {
   const [root] = useState<FsNode>(() => buildFilesystem());
@@ -95,6 +156,8 @@ export default function App() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const firstRender = useRef(true);
+
+  const theme = getTheme(state.terminalUser);
 
   // Initial banner
   useEffect(() => {
@@ -145,7 +208,7 @@ export default function App() {
     const [cmd, ...args] = trimmed.split(/\s+/);
     const handler = commands[cmd];
     if (!handler) {
-      print(`${cmd}: command not found  (try \`help\`)`, "text-red-400");
+      print(`${cmd}: command not found`, "text-red-400");
       return;
     }
     handler(args, {
@@ -207,7 +270,7 @@ export default function App() {
     (state.difficulty !== "impossible" && state.mapVisible);
 
   return (
-    <div className="h-screen w-full bg-black text-emerald-200 font-mono text-[15px] leading-6 flex flex-col overflow-hidden">
+    <div className={`h-screen w-full ${theme.bg} ${theme.text} ${theme.filter} font-mono text-[15px] leading-6 flex flex-col overflow-hidden`}>
       {/* top bar */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-stone-800 bg-stone-950/60">
         <div className="flex items-center gap-3">
@@ -233,9 +296,9 @@ export default function App() {
           {lines.map((ln, i) => (
             <div key={i} className="whitespace-pre-wrap break-words select-text">
               {ln.prompt ? (
-                <span className={ln.cls ?? "text-emerald-300"}>{ln.prompt}</span>
+                <span className={ln.cls ?? theme.prompt}>{ln.prompt}</span>
               ) : (
-                <span className={ln.cls ?? "text-emerald-200"}>{ln.text}</span>
+                <span className={ln.cls ?? theme.text}>{ln.text}</span>
               )}
             </div>
           ))}
@@ -251,12 +314,13 @@ export default function App() {
                 inlinePrompt.onCancel?.();
                 setInlinePrompt(null);
               }}
+              theme={theme}
             />
           )}
 
           {!editor && !inlinePrompt && !showIntro && (
             <form onSubmit={onSubmit} className="flex items-center gap-2">
-              <span className="text-emerald-300 shrink-0">{prompt()}</span>
+              <span className={`${theme.prompt} shrink-0`}>{prompt()}</span>
               <input
                 ref={inputRef}
                 autoFocus
@@ -265,7 +329,7 @@ export default function App() {
                 onKeyDown={onKeyDown}
                 spellCheck={false}
                 autoComplete="off"
-                className="flex-1 bg-transparent outline-none text-emerald-100 caret-emerald-300"
+                className={`flex-1 bg-transparent outline-none ${theme.input} ${theme.caret}`}
               />
             </form>
           )}
@@ -280,13 +344,16 @@ export default function App() {
       {showIntro && (
         <IntroModal
           hasSave={hasSave}
-          onClose={(difficulty) => {
-            setState((s) => ({ ...s, difficulty }));
-            setShowIntro(false);
-          }}
+          currentDifficulty={state.difficulty}
+          onDifficultyChange={(d) => setState((s) => ({ ...s, difficulty: d }))}
+          onClose={() => setShowIntro(false)}
           onRestore={() => {
             const saved = loadAutosave();
             if (saved) setState(saved);
+            setShowIntro(false);
+          }}
+          onLoadSave={(saved) => {
+            setState(saved);
             setShowIntro(false);
           }}
         />
@@ -309,16 +376,26 @@ export default function App() {
 }
 
 
+// --- IntroModal ----------------------------------------------------------
+
 function IntroModal({
   hasSave,
+  currentDifficulty,
+  onDifficultyChange,
   onClose,
   onRestore,
+  onLoadSave,
 }: {
   hasSave: boolean;
-  onClose: (difficulty: Difficulty) => void;
+  currentDifficulty: Difficulty;
+  onDifficultyChange: (d: Difficulty) => void;
+  onClose: () => void;
   onRestore: () => void;
+  onLoadSave: (state: GameState) => void;
 }) {
-  const [difficulty, setDifficulty] = useState<Difficulty>("easy");
+  const [showLoadInput, setShowLoadInput] = useState(false);
+  const [loadInput, setLoadInput] = useState("");
+  const [loadError, setLoadError] = useState("");
 
   const difficultyLabels: { value: Difficulty; label: string; desc: string }[] = [
     { value: "easy", label: "Easy", desc: "full guidance" },
@@ -326,6 +403,22 @@ function IntroModal({
     { value: "hard", label: "Hard", desc: "stage name only" },
     { value: "impossible", label: "Impossible", desc: "total silence" },
   ];
+
+  const mapNote: Record<Difficulty, string> = {
+    easy: "Map panel always visible",
+    medium: "Map panel toggleable with `map`",
+    hard: "Map panel toggleable with `map`",
+    impossible: "Map panel hidden",
+  };
+
+  const handleLoadConfirm = () => {
+    const result = tryDeserializeSaveString(loadInput);
+    if (typeof result === "string") {
+      setLoadError(result);
+    } else {
+      onLoadSave(result);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-6 z-50">
@@ -358,9 +451,9 @@ function IntroModal({
             {difficultyLabels.map(({ value, label, desc }) => (
               <button
                 key={value}
-                onClick={() => setDifficulty(value)}
+                onClick={() => onDifficultyChange(value)}
                 className={`px-3 py-1 border text-sm ${
-                  difficulty === value
+                  currentDifficulty === value
                     ? "border-emerald-500 text-emerald-300 bg-emerald-900/30"
                     : "border-stone-700 text-stone-400 hover:border-stone-500"
                 }`}
@@ -370,11 +463,47 @@ function IntroModal({
               </button>
             ))}
           </div>
+          <div className="mt-1 text-xs text-stone-600">
+            {mapNote[currentDifficulty]}
+          </div>
         </div>
 
+        {/* Load save input (revealed on demand) */}
+        {showLoadInput && (
+          <div className="mt-4 border border-stone-700 p-3 bg-black/40">
+            <div className="text-xs text-stone-400 mb-2">Paste save string:</div>
+            <textarea
+              autoFocus
+              value={loadInput}
+              onChange={(e) => { setLoadInput(e.target.value); setLoadError(""); }}
+              rows={3}
+              spellCheck={false}
+              className="w-full bg-transparent text-emerald-200 font-mono text-xs outline-none resize-none border border-stone-800 p-1"
+              placeholder="eyJ2IjoxLCJlZ2dzR..."
+            />
+            {loadError && (
+              <div className="text-red-400 text-xs mt-1">{loadError}</div>
+            )}
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={handleLoadConfirm}
+                className="px-3 py-1 border border-emerald-600 text-emerald-300 text-sm hover:bg-emerald-600/20"
+              >
+                [ confirm ]
+              </button>
+              <button
+                onClick={() => { setShowLoadInput(false); setLoadError(""); setLoadInput(""); }}
+                className="px-3 py-1 border border-stone-700 text-stone-400 text-sm hover:bg-stone-800"
+              >
+                [ cancel ]
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="mt-6 flex items-center justify-between gap-3">
-          <div>
-            {hasSave && (
+          <div className="flex gap-2">
+            {hasSave && !showLoadInput && (
               <button
                 onClick={onRestore}
                 className="px-4 py-2 border border-stone-600 text-stone-300 hover:bg-stone-800 text-sm"
@@ -382,9 +511,17 @@ function IntroModal({
                 [ restore save ]
               </button>
             )}
+            {!showLoadInput && (
+              <button
+                onClick={() => setShowLoadInput(true)}
+                className="px-4 py-2 border border-stone-700 text-stone-400 hover:bg-stone-800 text-sm"
+              >
+                [ load save ]
+              </button>
+            )}
           </div>
           <button
-            onClick={() => onClose(difficulty)}
+            onClick={onClose}
             className="px-4 py-2 border border-emerald-600 text-emerald-300 hover:bg-emerald-600/20"
           >
             [ enter shell ]
@@ -396,77 +533,148 @@ function IntroModal({
 }
 
 
+// --- MapPanel ------------------------------------------------------------
+
 function MapPanel({ state, root, cwd }: { state: GameState; root: FsNode; cwd: string }) {
   const homeNode = findNode(root, "/home/player");
-  const homeChildren =
-    homeNode?.kind === "dir" ? homeNode.children.filter((c) => c.kind === "dir") : [];
+  const homeBuiltinDirs = homeNode?.kind === "dir"
+    ? homeNode.children.filter((c) => c.kind === "dir")
+    : [];
 
   const rootDirNode = findNode(root, "/root");
-  const rootLocked =
-    rootDirNode?.kind === "dir" && rootDirNode.locked
-      ? rootDirNode.locked(state)
-      : false;
+  const rootLocked = rootDirNode?.kind === "dir" && rootDirNode.locked
+    ? rootDirNode.locked(state)
+    : false;
 
   const isCurrent = (path: string) => cwd === path || cwd.startsWith(path + "/");
+  const isVisited = (path: string) => state.visited.includes(path);
+
+  // Files in a dir from the FS (names without extension, max 4)
+  const getFsFiles = (dirPath: string): string[] => {
+    const node = findNode(root, dirPath);
+    if (node?.kind !== "dir") return [];
+    return node.children
+      .filter((c) => c.kind === "file")
+      .map((c) => c.name.replace(/\.[^.]+$/, ""))
+      .slice(0, 4);
+  };
+
+  // User-created items directly inside a path
+  const getUserChildren = (parentPath: string) =>
+    state.userCreated.filter((u) => {
+      const parent = u.path.split("/").slice(0, -1).join("/") || "/";
+      return parent === parentPath;
+    });
+
+  // User-created dirs directly inside /home/player
+  const userHomeDirs = state.userCreated.filter((u) => {
+    const parent = u.path.split("/").slice(0, -1).join("/") || "/";
+    return u.type === "dir" && parent === "/home/player";
+  });
+
+  // All /home/player subdirectories in display order
+  const allHomeDirs = [
+    ...homeBuiltinDirs.map((c) => ({
+      name: c.name,
+      path: `/home/player/${c.name}`,
+      locked: c.kind === "dir" && c.locked ? c.locked(state) : false,
+      isUser: false,
+    })),
+    ...userHomeDirs.map((u) => ({
+      name: u.path.split("/").pop()!,
+      path: u.path,
+      locked: false,
+      isUser: true,
+    })),
+  ];
+
+  const renderFileList = (dirPath: string, _isUser: boolean, isLastParent: boolean) => {
+    if (!isVisited(dirPath)) return null;
+    const fsFiles = getFsFiles(dirPath);
+    const userChildren = getUserChildren(dirPath);
+    const allItems = [
+      ...fsFiles.map((f) => ({ name: f, isUser: false, isDir: false })),
+      ...userChildren.map((u) => ({
+        name: u.path.split("/").pop()!.replace(/\.[^.]+$/, ""),
+        isUser: true,
+        isDir: u.type === "dir",
+      })),
+    ].slice(0, 5);
+    if (allItems.length === 0) return null;
+    const indent = isLastParent ? "    " : "│   ";
+    return allItems.map((item, idx) => {
+      const conn = idx === allItems.length - 1 ? "└─" : "├─";
+      return (
+        <div key={item.name} className={`pl-1 ${item.isUser ? "text-sky-400" : "text-stone-600"}`}>
+          {indent}{conn} {item.name}{item.isDir ? "/" : ""}
+        </div>
+      );
+    });
+  };
 
   return (
-    <div className="w-44 shrink-0 border-l border-stone-800 bg-stone-950 px-3 py-3 text-xs font-mono overflow-y-auto">
-      <div className="text-stone-600 mb-3">[ MAP ]</div>
+    <div className={`w-48 shrink-0 border-l border-stone-800 bg-stone-950 px-3 py-3 text-xs font-mono overflow-y-auto relative ${state.difficulty === "easy" ? "group" : ""}`}>
+      {/* Hover tooltip — easy mode only */}
+      {state.difficulty === "easy" && (
+        <div className="hidden group-hover:flex absolute inset-0 bg-stone-950/95 items-center justify-center z-10 p-3">
+          <div className="text-stone-400 text-center leading-5">
+            navigate with<br />
+            <span className="text-emerald-300">ls</span> and{" "}
+            <span className="text-emerald-300">cd</span>
+          </div>
+        </div>
+      )}
+
+      <div className="text-stone-600 mb-2">[ MAP ]</div>
 
       {/* /home/player */}
       <div className={isCurrent("/home/player") ? "text-emerald-300" : "text-stone-400"}>
         ~ /home/player
       </div>
 
-      {/* built-in subdirs of /home/player */}
-      {homeChildren.map((child) => {
-        if (child.kind !== "dir") return null;
-        const childPath = "/home/player/" + child.name;
-        const locked = child.locked ? child.locked(state) : false;
-        const active = isCurrent(childPath);
+      {/* Subdirs of /home/player */}
+      {allHomeDirs.map((d, idx) => {
+        const isLast = idx === allHomeDirs.length - 1 && !state.visited.includes("/etc");
+        const active = isCurrent(d.path);
+        const cls = active
+          ? "text-emerald-300"
+          : d.locked
+          ? "text-stone-700"
+          : d.isUser
+          ? "text-sky-400"
+          : "text-stone-400";
+        const conn = isLast ? "└─" : "├─";
         return (
-          <div
-            key={child.name}
-            className={`pl-2 ${active ? "text-emerald-300" : locked ? "text-stone-700" : "text-stone-400"}`}
-          >
-            {child.name}/{locked ? " [locked]" : ""}
+          <div key={d.path}>
+            <div className={`pl-1 ${cls}`}>
+              {conn} {d.name}/{d.locked ? " [locked]" : ""}
+            </div>
+            {!d.locked && renderFileList(d.path, d.isUser, isLast)}
           </div>
         );
       })}
 
-      {/* user-created dirs directly inside /home/player */}
-      {state.userCreated
-        .filter((u) => {
-          const parent = u.path.split("/").slice(0, -1).join("/") || "/";
-          return u.type === "dir" && parent === "/home/player";
-        })
-        .map((u) => {
-          const name = u.path.split("/").pop()!;
-          return (
-            <div
-              key={u.path}
-              className={`pl-2 ${isCurrent(u.path) ? "text-emerald-300" : "text-sky-400"}`}
-            >
-              {name}/
-            </div>
-          );
-        })}
-
       {/* /etc — show if visited */}
       {state.visited.includes("/etc") && (
-        <div className={`mt-3 ${isCurrent("/etc") ? "text-emerald-300" : "text-stone-400"}`}>
-          /etc
-        </div>
+        <>
+          <div className={`mt-2 ${isCurrent("/etc") ? "text-emerald-300" : "text-stone-400"}`}>
+            /etc
+          </div>
+          {renderFileList("/etc", false, false)}
+        </>
       )}
 
       {/* /root */}
-      <div className={`mt-3 ${isCurrent("/root") ? "text-emerald-300" : rootLocked ? "text-stone-700" : "text-stone-400"}`}>
+      <div className={`mt-2 ${isCurrent("/root") ? "text-emerald-300" : rootLocked ? "text-stone-700" : "text-stone-400"}`}>
         /root{rootLocked ? " [locked]" : ""}
       </div>
+      {!rootLocked && renderFileList("/root", false, true)}
     </div>
   );
 }
 
+
+// --- EditorModal ---------------------------------------------------------
 
 function EditorModal({
   path,
@@ -529,14 +737,19 @@ function EditorModal({
   );
 }
 
+
+// --- InlinePasswordForm --------------------------------------------------
+
 function InlinePasswordForm({
   label,
   onSubmit,
   onCancel,
+  theme,
 }: {
   label: string;
   onSubmit: (v: string) => void;
   onCancel: () => void;
+  theme: Theme;
 }) {
   const [value, setValue] = useState("");
   const ref = useRef<HTMLInputElement>(null);
@@ -549,7 +762,7 @@ function InlinePasswordForm({
       }}
       className="flex items-center gap-2"
     >
-      <span className="text-emerald-300 shrink-0">{label}</span>
+      <span className={`${theme.prompt} shrink-0`}>{label}</span>
       <input
         ref={ref}
         type="password"
@@ -560,7 +773,7 @@ function InlinePasswordForm({
         }}
         spellCheck={false}
         autoComplete="off"
-        className="flex-1 bg-transparent outline-none text-emerald-100 caret-emerald-300"
+        className={`flex-1 bg-transparent outline-none ${theme.input} ${theme.caret}`}
       />
     </form>
   );

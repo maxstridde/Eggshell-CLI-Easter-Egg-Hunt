@@ -265,6 +265,14 @@ Four levels: **easy** / **medium** / **hard** / **impossible**.
 - `load <string>`: decodes and restores state. Validates `v === 1` before applying.
 - `localStorage` autosave on every state change. Intro modal shows restore button if autosave exists (Phase A: investigate reliability).
 
+### `rm` command constraints *(implemented)*
+
+`rm` only removes nodes inside `/home/player` that exist in `state.userCreated[]`. Built-in FS files are untouchable. Refuses to delete non-empty directories. No `-r` flag.
+
+### Editor modal *(implemented)*
+
+Centered modal. Save shortcut is OS-aware: `Cmd+S` on macOS, `Ctrl+S` on Windows/Linux, detected via `navigator.userAgent`. `Esc` cancels without saving.
+
 ---
 
 ## Code quality / technical debt

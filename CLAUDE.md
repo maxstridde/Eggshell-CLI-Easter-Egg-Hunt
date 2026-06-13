@@ -2,96 +2,89 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project overview
+## Project
 
-**Eggshell** is a browser-based terminal emulator game for CLI education. Players complete a 6-stage easter-egg hunt by learning real shell concepts (`ls`, `cd`, `cat`, `mkdir`, `touch`, `rm`, `edit`, `sudo`, `base64`, `unzip`). It is a *training shell*, not a real one — every concept maps 1:1 to real Linux/macOS behavior.
+**Eggshell** — browser-based terminal emulator game for CLI education. Players complete a 6-stage easter-egg hunt learning real shell concepts (`ls`, `cd`, `cat`, `mkdir`, `touch`, `rm`, `edit`, `sudo`, `base64`, `unzip`). It is a *training shell*, not a real one.
 
 ## Commands
 
 ```bash
-npm run dev      # start Vite dev server
-npm run build    # production build (outputs a single self-contained HTML file via vite-plugin-singlefile)
-npm run preview  # preview the production build
+npm run dev      # Vite dev server
+npm run build    # single self-contained HTML via vite-plugin-singlefile
+npm run preview  # preview production build
+npx tsc --noEmit # type-check (no test runner configured)
 ```
-
-No test runner is configured. Type-check with: `npx tsc --noEmit`
 
 ## Architecture
 
 ```
 src/
-  App.tsx          — terminal UI, inline prompt loop, editor modal, map panel, command history
+  App.tsx          — terminal UI, prompt loop, editor modal, map panel, command history
   game/
-    fs.ts          — virtual filesystem tree (FsNode), GameState + Difficulty types, all file content
-    commands.ts    — command handlers: execute(input, state, setState, openEditor, passwordPrompt)
-    stage.ts       — stageOf(), stageLabel(), stageHint() — all difficulty-aware
-  utils/cn.ts      — clsx + tailwind-merge helper
+    fs.ts          — FsNode tree, GameState + Difficulty types, all file content
+    commands.ts    — execute(input, state, setState, openEditor, passwordPrompt)
+    stage.ts       — stageOf(), stageLabel(), stageHint()
+  utils/cn.ts      — clsx + tailwind-merge
 ```
 
-### Data flow
+### State & data flow
 
-`GameState` lives in `App.tsx` as React state. Commands receive `(state, setState)` and mutate via `setState(s => ...)`. The virtual FS is a plain object tree defined in `fs.ts`; locked nodes carry a `locked: (state: GameState) => boolean` predicate that `ls` and `cd` evaluate at runtime.
+`GameState` lives in `App.tsx`. Commands receive `(state, setState)` and mutate via `setState(s => ...)`.
 
-User-created files/dirs live in `state.userCreated[]`. File content overrides (from `edit`) live in `state.edits[path]`. `cat` checks `edits` first, then falls back to the FS node or userCreated content.
+Two runtime stores:
+- `state.userCreated[]` — files/dirs created by the player
+- `state.edits[path]` — content overrides from `edit` command; `cat` checks this first
 
-### The 6-stage puzzle graph
+FS nodes can carry `locked: (state: GameState) => boolean`; `ls` and `cd` evaluate it at runtime.
 
-| Stage | Gate | What it unlocks |
+`onEdit` callbacks in `fs.ts` return `{ error: string | null, patch?: Partial<GameState> }`. The `edit` command in `commands.ts` applies the patch — **do not mutate state inside `onEdit`**.
+
+### The 6-stage puzzle
+
+| Stage | Gate | Unlocks |
 |---|---|---|
 | 1 OFFLINE | `wifi connect EggHunt-5G` (pw: `yolk-yolk-123`) | `/home/player/documents` → egg1 |
 | 2 CREATE | `mkdir magic` + `touch magic/token.txt` | `/home/player/secrets` → egg2 |
-| 3 EDIT | `edit secrets.cfg` → flip `path_to_vault_locked = true` to `false` | `/home/player/vault` → egg3 |
-| 4 DECODE | `base64 -d c2VjcmV0LWVnZw==` or decode the `passphrase` field in `sudo_clue.json` → `secret-egg` | (knowledge gate) |
-| 5 SUDO | `sudo edit /etc/privilege.cfg` → flip `allow_admin = false` to `true` | `/home/player/admin` → egg4 + `/root` |
-| 6 ROOT | `sudo cd /root`, `unzip final_egg.zip`, `cat final_egg.txt` | Win condition → egg5 |
+| 3 EDIT | `edit secrets.cfg` → set `path_to_vault_locked = false` | `/home/player/vault` → egg3 |
+| 4 DECODE | `base64 -d` the passphrase in `sudo_clue.json` → `secret-egg` | knowledge gate |
+| 5 SUDO | `sudo edit /etc/privilege.cfg` → set `allow_admin = true` | `/home/player/admin` → egg4 + `/root` |
+| 6 ROOT | `sudo cd /root`, `unzip final_egg.zip`, `cat final_egg.txt` | egg5 + win |
 
-Each stage has an `eggN.txt`; `cat`-ing it appends the path to `state.eggsFound[]`. Win = 5 eggs.
+`cat`-ing an `eggN.txt` appends its path to `state.eggsFound[]`. Win = 5 eggs.
 
 ### Difficulty system
 
-`GameState.difficulty: "easy" | "medium" | "hard" | "impossible"`. Set at startup (intro modal) or via `difficulty <level>` command.
+`GameState.difficulty: "easy" | "medium" | "hard" | "impossible"` — set at startup or via `difficulty <level>`.
 
-- `stageOf(state)` in `stage.ts` returns the stage description filtered by difficulty (full / partial / label / silent).
-- `stageHint(state)` returns a hint string one level easier than the current difficulty, or null if impossible.
-- The map panel (`MapPanel` component in `App.tsx`) is always visible on easy, toggleable on medium/hard, hidden on impossible.
+| Feature | easy | medium | hard | impossible |
+|---|---|---|---|---|
+| `stage` output | full | partial | label only | silent |
+| `hint` command | verbose | verbose | one step | forbidden |
+| map panel | always visible | toggle | toggle | hidden |
+| `help` | full | full | full | exits only |
+
+Map panel is `hidden sm:flex` — hidden on mobile, shown on desktop. A `[map]` button in the top bar opens a fullscreen overlay on mobile.
 
 ### Password prompts
 
-Password entry is **inline in the terminal** (not a modal). `passwordPrompt()` sets `inlinePrompt` state in `App.tsx`, which renders a `type="password"` input inline in the scrollback. Submitting or pressing Escape clears it and calls the callback.
+Inline in the terminal (not a modal). `passwordPrompt()` sets `inlinePrompt` state, rendering a `type="password"` input inline. Escape cancels.
 
-### Editor modal
+### Save system
 
-The text editor is a centered modal. The save shortcut is OS-aware: `Cmd+S` on macOS, `Ctrl+S` on Windows/Linux (detected via `navigator.userAgent`). `Esc` cancels.
+- `save` — `btoa(JSON.stringify({ v: 1, ...state }))` via TextEncoder (UTF-8 safe)
+- `load <string>` — decodes, validates `v === 1`, calls `setState`
+- Autosaves to `localStorage["eggshell-autosave"]` on every state change
 
-`onEdit` callbacks in `fs.ts` now return `{ error: string | null, patch?: Partial<GameState> }` instead of mutating state. The `edit` command handler in `commands.ts` applies the patch.
+### Visual constraints
 
-### Map panel
+- Strictly monochrome: black background, emerald/gray/red, monospace only
+- No animations, no gradients — must look like a real CLI
+- Path alias `@/` → `src/`
 
-`MapPanel` in `App.tsx` renders the key directory structure with real-time lock status derived from `locked` predicates. Shows `/home/player` and its children, user-created dirs, `/etc` (if visited), and `/root`. Current directory is highlighted with exact-path matching (`cwd === path`, not `startsWith`).
+## Backlog & known issues
 
-`renderDirContents(dirPath, baseIndent)` renders files and subdirs inside a visited directory. If a subdir has been visited it expands one level deeper (no further recursion). `baseIndent` carries the vertical-bar prefix from the parent: `"│   "` or `"    "` for home subdirs, `""` for top-level sections (`/etc`, `/root`).
-
-`/etc` contains `cron.d/` (a realistic but stage-irrelevant directory) alongside `hostname`, `issue`, `wifi.json`, and `privilege.cfg`.
-
-### Save / Export system
-
-- `save` command: `btoa(JSON.stringify({ v: 1, ...state }))` — prints the string and copies to clipboard.
-- `load <string>` command: `atob` → parse → validate `v === 1` → `setState` + `setCwd("/home/player")`.
-- `App.tsx` autosaves to `localStorage["eggshell-autosave"]` on every state change (skipping the first render). The intro modal shows `[ restore save ]` if an autosave exists.
-
-### rm command
-
-`rm` only removes user-created nodes inside `/home/player`. It refuses to delete non-empty directories and has no `-r` flag. Built-in FS files are untouchable.
-
-## Known bugs / open items (see todo.md for full details)
-
-- In-game clue file text is not yet difficulty-aware (deferred to Phase C).
-- Stage 4 (`knowsSudoPassword`) is never reset if the decoded value changes.
-- Tab autocompletion not yet implemented.
-- Small screens (< 640 px) are difficult: map panel (w-48) consumes ~53 % of a phone viewport; prompt string wraps on deep paths. See Phase A3 in todo.md.
-
-## Visual / UX constraints
-
-- Strictly monochrome terminal palette: black background, emerald/gray/red, monospace font only
-- No animations, no gradients — must *look* like a real CLI
-- Path alias `@/` maps to `src/`
+See `todo.md` for the full backlog (Phases A–E) and open bugs. Key open items:
+- Stage 4 `knowsSudoPassword` not reset if decoded value changes
+- Tab autocompletion not implemented
+- Clue file text not yet difficulty-aware (planned Phase C)
+- `[ restore save ]` button reliability uninvestigated

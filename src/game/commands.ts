@@ -1,5 +1,7 @@
-import { Difficulty, FsNode, GameState, findNode, initialState, resolvePath } from "./fs";
-import { STAGES, stageHint, stageOf } from "./stage";
+import { Difficulty, FsNode, GameState } from "../types";
+import { fileContent, findNode, resolvePath } from "./fs";
+import { STAGES, activeStageIndex, hintExhausted, stageHint, stageOf } from "./stage";
+import { exportSave, importSave } from "./save";
 
 export interface CmdContext {
   root: FsNode;
@@ -12,12 +14,14 @@ export interface CmdContext {
   sudoActive: boolean;
   setSudoActive: (b: boolean) => void;
   passwordPrompt: (onSubmit: (pwd: string) => void, title?: string, onCancel?: () => void) => void;
+  openMenu: () => void;
 }
 
 export type CommandHandler = (args: string[], ctx: CmdContext) => void;
 
-// Returns the player's current progress level (0–5) used to filter help entries.
+// Returns the player's current progress level (0–6) used to filter help entries.
 function progressLevel(s: GameState): number {
+  if (s.finalEggFound) return 6;
   if (s.adminUnlocked) return 5;
   if (s.knowsSudoPassword) return 4;
   if (s.secretsUnlocked) return 3;
@@ -55,7 +59,9 @@ const HELP_ENTRIES: HelpEntry[] = [
   { cmd: "base64 -d <string|file>",  desc: "decode a base64 string or file", minLevel: 4 },
   { cmd: "sudo <command>",           desc: "run a command as administrator (requires password)", minLevel: 4 },
   { cmd: "unzip <file>",             desc: "extract a zip archive in the current directory", minLevel: 5 },
+  { cmd: "grep [-r] <text> <target>", desc: "search file contents for matching lines (-r: whole directory)", minLevel: 6 },
   { cmd: "map",                      desc: "toggle the map panel (medium/hard only)", minLevel: 5 },
+  { cmd: "menu",                     desc: "pause and return to the main menu", minLevel: 0 },
 ];
 
 const IMPOSSIBLE_HELP_TEXT = `Commands available on impossible difficulty:
@@ -198,6 +204,23 @@ export const commands: Record<string, CommandHandler> = {
       return;
     }
     ctx.print(h, "text-yellow-300");
+
+    const idx = stageIndex ?? activeStageIndex(ctx.state);
+    if (idx >= 0) {
+      // Exhaustion is checked against the pre-increment count: only nudge once
+      // the player has already seen this difficulty's top hint tier before.
+      const capped = hintExhausted(ctx.state, idx);
+      ctx.setState((s) => ({
+        ...s,
+        hintAskedCount: { ...s.hintAskedCount, [idx]: (s.hintAskedCount[idx] ?? 0) + 1 },
+      }));
+      if (capped && difficulty !== "easy") {
+        ctx.print(
+          "That's as specific as hints get on this difficulty. If you're stuck, try `difficulty easy` — you can switch back any time.",
+          "text-stone-400"
+        );
+      }
+    }
   },
 
   difficulty: (args, ctx) => {
@@ -234,33 +257,19 @@ export const commands: Record<string, CommandHandler> = {
     ctx.print(next ? "Map shown." : "Map hidden.", "text-stone-400");
   },
 
+  menu: (_, ctx) => {
+    ctx.print("returning to main menu… (your progress is safe)", "text-stone-400");
+    ctx.openMenu();
+  },
+
+  // Silent alias for `menu` — deliberately hidden from help.
+  quit: (_, ctx) => {
+    ctx.print("returning to main menu… (your progress is safe)", "text-stone-400");
+    ctx.openMenu();
+  },
+
   save: (_, ctx) => {
-    const s = ctx.state;
-    const data = {
-      v: 1,
-      eggsFound: s.eggsFound,
-      wifiConnected: s.wifiConnected,
-      wifiSSID: s.wifiSSID,
-      createdMagicDir: s.createdMagicDir,
-      createdTokenFile: s.createdTokenFile,
-      secretsUnlocked: s.secretsUnlocked,
-      knowsSudoPassword: s.knowsSudoPassword,
-      adminUnlocked: s.adminUnlocked,
-      rootEntered: s.rootEntered,
-      finalEggFound: s.finalEggFound,
-      edits: s.edits,
-      userCreated: s.userCreated,
-      sudoTries: s.sudoTries,
-      difficulty: s.difficulty,
-      terminalUser: s.terminalUser,
-      visited: s.visited,
-      mapVisible: s.mapVisible,
-    };
-    const json = JSON.stringify(data);
-    const utf8Bytes = new TextEncoder().encode(json);
-    let bin = "";
-    for (const b of utf8Bytes) bin += String.fromCharCode(b);
-    const encoded = btoa(bin);
+    const encoded = exportSave(ctx.state);
     ctx.print("Save string:", "text-stone-400");
     ctx.print(encoded);
     ctx.print("Use `load <string>` to restore.", "text-stone-400");
@@ -275,40 +284,14 @@ export const commands: Record<string, CommandHandler> = {
       ctx.print("load: usage — `load <save-string>`", "text-red-400");
       return;
     }
-    try {
-      const binStr = atob(str);
-      const bytes = new Uint8Array(binStr.length);
-      for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
-      const data = JSON.parse(new TextDecoder().decode(bytes));
-      if (data.v !== 1) {
-        ctx.print(`load: incompatible save version (got v${data.v}, expected v1)`, "text-red-400");
-        return;
-      }
-      ctx.setState(() => ({
-        ...initialState,
-        eggsFound: data.eggsFound ?? [],
-        wifiConnected: data.wifiConnected ?? false,
-        wifiSSID: data.wifiSSID ?? "",
-        createdMagicDir: data.createdMagicDir ?? false,
-        createdTokenFile: data.createdTokenFile ?? false,
-        secretsUnlocked: data.secretsUnlocked ?? false,
-        knowsSudoPassword: data.knowsSudoPassword ?? false,
-        adminUnlocked: data.adminUnlocked ?? false,
-        rootEntered: data.rootEntered ?? false,
-        finalEggFound: data.finalEggFound ?? false,
-        edits: data.edits ?? {},
-        userCreated: data.userCreated ?? [],
-        sudoTries: data.sudoTries ?? 0,
-        difficulty: data.difficulty ?? "easy",
-        terminalUser: data.terminalUser ?? "player",
-        visited: data.visited ?? ["/home/player"],
-        mapVisible: data.mapVisible ?? false,
-      }));
-      ctx.setCwd("/home/player");
-      ctx.print("Save loaded. Welcome back!", "text-emerald-300");
-    } catch {
-      ctx.print("load: invalid save string", "text-red-400");
+    const result = importSave(str);
+    if (typeof result === "string") {
+      ctx.print(`load: ${result}`, "text-red-400");
+      return;
     }
+    ctx.setState(() => result);
+    ctx.setCwd("/home/player");
+    ctx.print("Save loaded. Welcome back!", "text-emerald-300");
   },
 
   eggs: (_, ctx) => {
@@ -317,7 +300,7 @@ export const commands: Record<string, CommandHandler> = {
       ctx.print("No eggs yet. Keep exploring!", "text-yellow-300");
       return;
     }
-    ctx.print(`Eggs found: ${found.length} / 5`, "text-yellow-300");
+    ctx.print(`Eggs found: ${found.length} / 6`, "text-yellow-300");
     found.forEach((p, i) => ctx.print(`  ${i + 1}. ${p}`));
   },
 
@@ -430,7 +413,7 @@ export const commands: Record<string, CommandHandler> = {
       ctx.print(`cat: ${args[0]}: Is a directory`, "text-red-400");
       return;
     }
-    const content = override ?? (node?.kind === "file" ? node.content : userFile?.content ?? "");
+    const content = override ?? (node?.kind === "file" ? fileContent(node, ctx.state) : userFile?.content ?? "");
     ctx.print(content.trimEnd());
 
     const eggFiles = [
@@ -439,6 +422,7 @@ export const commands: Record<string, CommandHandler> = {
       "/home/player/vault/egg3.txt",
       "/home/player/admin/egg4.txt",
       "/root/final_egg.txt",
+      "/var/backups/egg6.txt",
     ];
     if (eggFiles.includes(target)) {
       ctx.setState((s) => {
@@ -545,7 +529,7 @@ export const commands: Record<string, CommandHandler> = {
 
     const initial =
       ctx.state.edits[target] ??
-      (node?.kind === "file" ? node.content : userFile?.content ?? "");
+      (node?.kind === "file" ? fileContent(node, ctx.state) : userFile?.content ?? "");
 
     ctx.openEditor(target, initial, (newContent) => {
       let saved = false;
@@ -571,7 +555,7 @@ export const commands: Record<string, CommandHandler> = {
     const sub = args[0];
     if (sub === "list") {
       const wifiNode = findNode(ctx.root, "/etc/wifi.json");
-      const raw = wifiNode?.kind === "file" ? wifiNode.content : null;
+      const raw = wifiNode?.kind === "file" ? fileContent(wifiNode, ctx.state) : null;
       ctx.print("SSID              SIGNAL  STATUS", "text-emerald-300");
       ctx.print("----------------  ------  ------", "text-emerald-300");
       if (raw) {
@@ -644,7 +628,7 @@ export const commands: Record<string, CommandHandler> = {
     if (fileNode?.kind === "file" || userFile) {
       encoded =
         ctx.state.edits[filePath] ??
-        (fileNode?.kind === "file" ? fileNode.content : userFile?.content ?? "");
+        (fileNode?.kind === "file" ? fileContent(fileNode, ctx.state) : userFile?.content ?? "");
       ctx.print(`(reading ${filePath})`, "text-stone-500");
       isFileDecode = true;
     } else {
@@ -740,12 +724,11 @@ export const commands: Record<string, CommandHandler> = {
         "  ls · cd · pwd · cat · mkdir · touch · rm\n" +
         "  edit · wifi · base64 -d · unzip · sudo\n" +
         "\n" +
-        "Now go try a real shell:\n" +
-        "  Windows: install WSL — open the Ubuntu app\n" +
-        "  macOS:   Applications → Utilities → Terminal\n" +
-        "  Linux:   you're already home\n" +
+        "Five eggs down — seriously impressive work.\n" +
         "\n" +
-        "Type `eggs` to confirm your collection.\n";
+        "But wait. While you were breaking in here, something wrote to the\n" +
+        "system logs. /var just unlocked. One egg is still out there,\n" +
+        "and the logs know where it went.\n";
       ctx.print("Archive:  final_egg.zip", "text-stone-400");
       ctx.print("  inflating: final_egg.txt", "text-emerald-300");
       ctx.setState((s) => ({
@@ -755,6 +738,88 @@ export const commands: Record<string, CommandHandler> = {
       return;
     }
     ctx.print(`unzip: ${args[0]}: no handler for this archive`, "text-red-400");
+  },
+
+  grep: (args, ctx) => {
+    const recursive = args[0] === "-r";
+    const rest = recursive ? args.slice(1) : args;
+    const pattern = rest[0];
+    if (!pattern) {
+      ctx.print("grep: usage — `grep [-r] <text> <file-or-directory>`", "text-red-400");
+      return;
+    }
+    const target = resolvePath(ctx.cwd, rest[1] ?? ".");
+
+    // Refuse targets inside (or at) a locked directory — same rule as cd/ls.
+    {
+      let cur = ctx.root;
+      let curPath = "";
+      for (const p of target.split("/").filter(Boolean)) {
+        if (cur.kind !== "dir") break;
+        const next = cur.children.find((c) => c.name === p);
+        if (!next) break;
+        curPath += "/" + p;
+        if (next.kind === "dir" && next.locked && next.locked(ctx.state)) {
+          ctx.print(`grep: ${curPath}: Permission denied`, "text-red-400");
+          return;
+        }
+        cur = next;
+      }
+    }
+
+    const node = findNode(ctx.root, target);
+    const userEntry = ctx.state.userCreated.find((u) => u.path === target);
+    if (!node && !userEntry) {
+      ctx.print(`grep: ${rest[1] ?? target}: No such file or directory`, "text-red-400");
+      return;
+    }
+    const isDir = (node && node.kind === "dir") || userEntry?.type === "dir";
+    if (isDir && !recursive) {
+      ctx.print(`grep: ${rest[1] ?? target}: Is a directory (try grep -r)`, "text-red-400");
+      return;
+    }
+
+    const files: { path: string; content: string }[] = [];
+    const addFile = (path: string, fsFile?: FsNode & { kind: "file" }) => {
+      const content =
+        ctx.state.edits[path] ??
+        (fsFile
+          ? fileContent(fsFile, ctx.state)
+          : ctx.state.userCreated.find((u) => u.type === "file" && u.path === path)?.content ?? "");
+      files.push({ path, content });
+    };
+
+    if (!isDir) {
+      addFile(target, node?.kind === "file" ? node : undefined);
+    } else {
+      const walk = (d: FsNode & { kind: "dir" }, path: string) => {
+        for (const child of d.children) {
+          const childPath = `${path === "/" ? "" : path}/${child.name}`;
+          if (child.kind === "dir") {
+            if (child.locked && child.locked(ctx.state)) continue;
+            walk(child, childPath);
+          } else {
+            addFile(childPath, child);
+          }
+        }
+      };
+      if (node?.kind === "dir") walk(node, target);
+      for (const u of ctx.state.userCreated) {
+        if (u.type === "file" && u.path.startsWith(target + "/")) addFile(u.path);
+      }
+    }
+
+    let matches = 0;
+    for (const f of files) {
+      if (f.path.endsWith(".zip")) continue;
+      for (const line of f.content.split("\n")) {
+        if (line.includes(pattern)) {
+          matches++;
+          ctx.print(recursive ? `${f.path}:${line}` : line);
+        }
+      }
+    }
+    if (matches === 0) ctx.print("(no matches)", "text-stone-400");
   },
 
   sudo: (args, ctx) => {
@@ -807,6 +872,54 @@ export const commands: Record<string, CommandHandler> = {
     }
   },
 };
+
+// Tab completion (deliberately undocumented — silent reward for shell users).
+// First token completes command names; later tokens complete paths.
+// Returns the completed input line, or null if nothing to complete.
+export function completeInput(raw: string, root: FsNode, state: GameState, cwd: string): string | null {
+  const parts = raw.split(/\s+/);
+  const last = parts[parts.length - 1] ?? "";
+
+  const finish = (candidates: string[], trailer = "") => {
+    if (candidates.length === 0) return null;
+    const completion =
+      candidates.length === 1 ? candidates[0] + trailer : commonPrefix(candidates);
+    if (completion.length <= last.length) return null;
+    return raw.slice(0, raw.length - last.length) + completion;
+  };
+
+  if (parts.length === 1) {
+    return finish(
+      Object.keys(commands).filter((c) => c !== "quit" && c.startsWith(last)),
+      " "
+    );
+  }
+
+  // Path completion: split the token into directory part + name prefix.
+  const slash = last.lastIndexOf("/");
+  const dirPart = slash >= 0 ? last.slice(0, slash + 1) : "";
+  const prefix = slash >= 0 ? last.slice(slash + 1) : last;
+  const dirPath = resolvePath(cwd, dirPart);
+  const node = findNode(root, dirPath);
+
+  const names: string[] = [];
+  if (node?.kind === "dir" && !(node.locked && node.locked(state))) {
+    for (const c of node.children) names.push(c.name + (c.kind === "dir" ? "/" : ""));
+  }
+  for (const u of state.userCreated) {
+    const parent = u.path.split("/").slice(0, -1).join("/") || "/";
+    if (parent === dirPath) names.push(u.path.split("/").pop()! + (u.type === "dir" ? "/" : ""));
+  }
+  return finish(names.filter((n) => n.startsWith(prefix)).map((n) => dirPart + n));
+}
+
+function commonPrefix(list: string[]): string {
+  let p = list[0];
+  for (const s of list) {
+    while (!s.startsWith(p)) p = p.slice(0, -1);
+  }
+  return p;
+}
 
 export function isClear(cmd: string): boolean {
   const c = cmd.trim().toLowerCase();

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-**Eggshell** — browser-based terminal emulator game for CLI education. Players complete a 6-stage easter-egg hunt learning real shell concepts (`ls`, `cd`, `cat`, `mkdir`, `touch`, `rm`, `edit`, `sudo`, `base64`, `unzip`). It is a *training shell*, not a real one.
+**Eggshell** — browser-based terminal emulator game for CLI education. Players complete a 7-stage easter-egg hunt learning real shell concepts (`ls`, `cd`, `cat`, `mkdir`, `touch`, `rm`, `edit`, `sudo`, `base64`, `unzip`, `grep`). It is a *training shell*, not a real one.
 
 ## Commands
 
@@ -19,11 +19,19 @@ npx tsc --noEmit # type-check (no test runner configured)
 
 ```
 src/
-  App.tsx          — terminal UI, prompt loop, editor modal, map panel, command history
+  App.tsx          — layout shell, prompt loop, command history, command wiring
+  types.ts         — GameState, FsNode, Difficulty, TerminalUser, initialState
+  terminal/
+    theme.ts       — Theme type + getTheme(terminalUser)
+    EditorModal.tsx
+    InlinePasswordForm.tsx
+    MapPanel.tsx
+    IntroModal.tsx — intro / main menu (also reopened by `menu` / `quit`)
   game/
-    fs.ts          — FsNode tree, GameState + Difficulty types, all file content
-    commands.ts    — execute(input, state, setState, openEditor, passwordPrompt)
-    stage.ts       — stageOf(), stageLabel(), stageHint()
+    fs.ts          — FsNode tree (all file content), path helpers, fileContent()
+    commands.ts    — command handlers, CmdContext (print, openEditor, openMenu, passwordPrompt…)
+    stage.ts       — STAGES, stageOf(), stageLabel(), stageHint(), activeStageIndex()
+    save.ts        — exportSave/importSave, loadAutosave/writeAutosave (single source)
   utils/cn.ts      — clsx + tailwind-merge
 ```
 
@@ -39,7 +47,7 @@ FS nodes can carry `locked: (state: GameState) => boolean`; `ls` and `cd` evalua
 
 `onEdit` callbacks in `fs.ts` return `{ error: string | null, patch?: Partial<GameState> }`. The `edit` command in `commands.ts` applies the patch — **do not mutate state inside `onEdit`**.
 
-### The 6-stage puzzle
+### The 7-stage puzzle
 
 | Stage | Gate | Unlocks |
 |---|---|---|
@@ -48,9 +56,10 @@ FS nodes can carry `locked: (state: GameState) => boolean`; `ls` and `cd` evalua
 | 3 EDIT | `edit secrets.cfg` → set `path_to_vault_locked = false` | `/home/player/vault` → egg3 |
 | 4 DECODE | `base64 -d` the passphrase in `sudo_clue.json` → `secret-egg` | knowledge gate |
 | 5 SUDO | `sudo edit /etc/privilege.cfg` → set `allow_admin = true` | `/home/player/admin` → egg4 + `/root` |
-| 6 ROOT | `sudo cd /root`, `unzip final_egg.zip`, `cat final_egg.txt` | egg5 + win |
+| 6 ROOT | `sudo cd /root`, `unzip final_egg.zip`, `cat final_egg.txt` | egg5 + `/var` |
+| 7 SEARCH | `grep -r egg /var/log` → path in syslog → `cat /var/backups/egg6.txt` | egg6 + win |
 
-`cat`-ing an `eggN.txt` appends its path to `state.eggsFound[]`. Win = 5 eggs.
+`cat`-ing an `eggN.txt` appends its path to `state.eggsFound[]`. Win = 6 eggs.
 
 ### Difficulty system
 
@@ -59,9 +68,11 @@ FS nodes can carry `locked: (state: GameState) => boolean`; `ls` and `cd` evalua
 | Feature | easy | medium | hard | impossible |
 |---|---|---|---|---|
 | `stage` output | full | partial | label only | silent |
-| `hint` command | verbose | verbose | one step | forbidden |
+| `hint` tiers (start→cap) | 1→2 | 0→1 | 0→0 | forbidden |
 | map panel | always visible | toggle | toggle | hidden |
 | `help` | full | full | full | exits only |
+
+Hints are escalating tiers per stage (`stage.ts`): 0 = nudge, 1 = concrete direction, 2 = exact commands. Repeated `hint` asks climb the tiers up to the difficulty cap; tiers can be `(state) => string` to react to sub-progress within a stage. `hintExhausted()` marks when asking again yields nothing new (triggers the "try `difficulty easy`" nudge).
 
 Map panel is `hidden sm:flex` — hidden on mobile, shown on desktop. A `[map]` button in the top bar opens a fullscreen overlay on mobile.
 
@@ -71,9 +82,13 @@ Inline in the terminal (not a modal). `passwordPrompt()` sets `inlinePrompt` sta
 
 ### Save system
 
-- `save` — `btoa(JSON.stringify({ v: 1, ...state }))` via TextEncoder (UTF-8 safe)
-- `load <string>` — decodes, validates `v === 1`, calls `setState`
-- Autosaves to `localStorage["eggshell-autosave"]` on every state change
+All serialization lives in `src/game/save.ts` (`exportSave` / `importSave` / `loadAutosave` / `writeAutosave`).
+
+- `save` — UTF-8-safe base64 JSON (`v: 1`), printed + copied to clipboard
+- `load <string>` — `importSave` returns `GameState` or an error message string
+- Autosaves to `localStorage["eggshell-autosave"]` on every state change — suppressed while the intro overlay is open, so pre-restore changes (e.g. picking a difficulty) can't clobber the saved game before `[ restore save ]` is clicked
+
+`hint` tracks per-stage asks in `state.hintAskedCount` (drives tier escalation, see Difficulty system). `menu` (and hidden alias `quit`) reopen the intro overlay via `ctx.openMenu()` without losing progress.
 
 ### Visual constraints
 
@@ -81,10 +96,17 @@ Inline in the terminal (not a modal). `passwordPrompt()` sets `inlinePrompt` sta
 - No animations, no gradients — must look like a real CLI
 - Path alias `@/` → `src/`
 
+### Tab completion
+
+`completeInput()` in `commands.ts`, wired to Tab in `App.tsx`. First token completes command names (hidden alias `quit` excluded); later tokens complete paths — FS children of unlocked dirs plus user-created files, multiple matches fall back to the longest common prefix. Deliberately undocumented in UI/help — silent reward for real shell users.
+
+### Difficulty-aware clue text
+
+Clue files (`README.txt`, `notes.txt`, `clue2.riddle`, `how-to-sudo.txt`) use `content: (state) => string`: easy = base + explicit pointer, medium = base, hard/impossible = hand-holding lines stripped. `editor-tips.txt` is a mechanics doc, same at all difficulties.
+
 ## Backlog & known issues
 
-See `todo.md` for the full backlog (Phases A–E) and open bugs. Key open items:
-- Stage 4 `knowsSudoPassword` not reset if decoded value changes
-- Tab autocompletion not implemented
-- Clue file text not yet difficulty-aware (planned Phase C)
-- `[ restore save ]` button reliability uninvestigated
+See `todo.md` for the current plan (next-session items, parked items with reasons, condensed history). Key parked items:
+- Phase D level-builder architecture — blocked until a second world is designed on paper
+- Debug-mode trophy egg (Phase E)
+- Stage 4 `knowsSudoPassword` not reset if decoded value changes — fold into Phase D

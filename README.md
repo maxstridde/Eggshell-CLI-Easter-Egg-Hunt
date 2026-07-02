@@ -25,7 +25,7 @@ single typed command would do in half a second.
 - the idea that some doors are locked until a config file says otherwise,
 - the idea that some actions require a password and elevated privileges.
 
-The game is an **easter-egg hunt**. Five eggs are hidden in the virtual
+The game is an **easter-egg hunt**. Six eggs are hidden in the virtual
 filesystem. To reach each one, the player must earn the next skill, and
 that skill unlocks the next room. Nothing is "fake" — every concept in
 Eggshell maps 1:1 onto something you would do in a real Linux, macOS, or
@@ -132,11 +132,12 @@ Stage 3: EDIT    ──► edit secrets.cfg (flip a boolean)  ──►  unlocks
 Stage 4: DECODE  ──► base64 -d <clue>  ──►  reveals the sudo password
 Stage 5: SUDO    ──► sudo edit /etc/privilege.cfg  ──►  unlocks /admin and /root  ──►  egg4
 Stage 6: ROOT    ──► sudo cd /root  ──►  unzip final_egg.zip  ──►  cat final_egg.txt  ──►  egg5
+Stage 7: SEARCH  ──► grep -r egg /var/log  ──►  cat /var/backups/egg6.txt  ──►  egg6
 ```
 
 Each stage also contains an **egg file** (`egg1.txt`, `egg2.txt`, …).
 Reading the egg with `cat` adds it to the player's collection (check with
-`eggs`). The game is won when all five are collected.
+`eggs`). The game is won when all six are collected.
 
 The non-linearity: a curious player can explore `/etc` from the very start,
 read `/etc/hostname`, `/etc/issue`, and `/etc/wifi.json` — all useful
@@ -204,8 +205,17 @@ entirely, because each locked directory guards the next.
 3. `sudo cd /root` — password prompt. Enter `secret-egg` again.
 4. `ls` — you see `final_egg.zip`.
 5. `unzip final_egg.zip` — extracts `final_egg.txt`.
-6. `cat final_egg.txt` — 🏆 the final egg!
-7. Type `eggs` to confirm: **5 / 5**. You win.
+6. `cat final_egg.txt` — 🥚 #5 collected. It reveals that `/var` just
+   unlocked and the logs know where the last egg went.
+
+### Stage 7 — Search the logs
+
+1. `cd /var/log` (or stay put) — the logs are long. Nobody reads logs
+   line by line.
+2. `grep -r egg /var/log` — one syslog line mentions
+   `relocating asset to /var/backups/egg6.txt`.
+3. `cat /var/backups/egg6.txt` — 🏆 the final egg!
+4. Type `eggs` to confirm: **6 / 6**. You win.
 
 ---
 
@@ -285,12 +295,12 @@ index.html             — <title> set to "Eggshell — The CLI Easter Egg Hunt"
 
 ### Game-state model
 
-A single `GameState` object lives in `src/game/fs.ts`. Locked directories
+A single `GameState` object (defined in `src/types.ts`) lives in `App.tsx`. Locked directories
 carry a predicate `(state) => boolean` — when it returns `true`, the
 directory is shown with `[locked]` in `ls` and `cd` refuses to enter it.
 Commands mutate this state via `setState((s) => …)`.
 
-### The six-stage puzzle graph
+### The seven-stage puzzle graph
 
 1. **Wi-Fi gate.** `wifi list` shows 4 networks. Only `EggHunt-5G` with
    password `yolk-yolk-123` gives internet. Unlocks `/home/player/documents`.
@@ -302,14 +312,16 @@ Commands mutate this state via `setState((s) => …)`.
 5. **sudo gate.** `sudo edit /etc/privilege.cfg`, flip `allow_admin` from
    `false` to `true`. Unlocks `/home/player/admin` and `/root`.
 6. **Root + unzip.** `sudo cd /root`, then `unzip final_egg.zip` to extract
-   `final_egg.txt`, then `cat final_egg.txt` for the win.
+   `final_egg.txt`, then `cat final_egg.txt` — unlocks `/var`.
+7. **Search gate.** `grep -r egg /var/log` reveals the path
+   `/var/backups/egg6.txt`; `cat` it for the win.
 
 ### Visual / UX rules
 
 - Strictly monochrome terminal palette: black background, emerald/gray/red
   foreground, monospace font only.
 - A fake "window chrome" at the top with three dots (red/yellow/green) and
-  a counter `🥚 eggs N/5 · stage: <stage>`.
+  a counter `🥚 eggs N/6 · stage: <stage>`.
 - Command history on arrow-up/arrow-down. `Ctrl+L` or `clear` clears the
   screen.
 - Password prompts are **inline** in the terminal (not a modal).

@@ -19,34 +19,47 @@ Branch: `finish-polish`. Small unsigned commits per step.
 
 ## Incoherences found → fixes
 
-- [ ] Stage 5 DECODE had no egg → merge into egg 5 "The Administrator" (steps: decode → sudo edit)
-- [ ] `final_egg.zip` / "THE PRIZE" / trophy is egg 6 of 7, not final → `egg6.zip` / `egg6.txt`, "The Root"
-- [ ] `start` says "Try `wifi list`" and the easy objective names exact commands → story-only objectives, `start` teaches ls/cat/help only
-- [ ] auth.log shows *player* running `sudo edit /etc/privilege.cfg` before the player did → Hen did it (with nano)
-- [ ] Logs say `host01`, but the hostname is `eggshell` → `eggshell`
-- [ ] notes.txt and README repeat each other → README = Hen's letter, notes = Hen's sticky notes (`~`, `..`, folders end in /)
-- [ ] admin-note.txt is redundant with egg 5 → delete
-- [ ] Doors open silently → announce "🔓 ~/x just unlocked" (also replaces the ad-hoc tidy message)
-- [ ] Easy started hints at tier 2 → all start at the nudge
-- [ ] Hints didn't show that asking again gives more → prefix `hint 1/3:`
-- [ ] `stage` and `eggs` duplicate the same concept → `eggs` shows found eggs and the next objective; `stage` is a hidden alias
-- [ ] New commands appear in `help` with no signal → after an egg: "(new commands — see `help`)"
+- [x] Stage 5 DECODE had no egg → merge into egg 5 "The Administrator" (steps: decode → sudo edit)
+- [x] `final_egg.zip` / "THE PRIZE" / trophy is egg 6 of 7, not final → `egg6.zip` / `egg6.txt`, "The Root"
+- [x] `start` says "Try `wifi list`" and the easy objective names exact commands → story-only objectives, `start` teaches ls/cat/help only
+- [x] auth.log shows *player* running `sudo edit /etc/privilege.cfg` before the player did → Hen did it (with nano)
+- [x] Logs say `host01`, but the hostname is `eggshell` → `eggshell`
+- [x] notes.txt and README repeat each other → README = Hen's letter, notes = Hen's sticky notes (`~`, `..`, folders end in /)
+- [x] admin-note.txt is redundant with egg 5 → delete
+- [x] Doors open silently → announce "🔓 ~/x just unlocked" (also replaces the ad-hoc tidy message)
+- [x] Easy started hints at tier 2 → all start at the nudge
+- [x] Hints didn't show that asking again gives more → prefix `hint 1/3:`
+- [x] `stage` and `eggs` duplicate the same concept → `eggs` shows found eggs and the next objective; `stage` is a hidden alias
+- [x] New commands appear in `help` with no signal → after an egg: "(new commands — see `help`)"
 
 ## Work items
 
-- [ ] Story + texts (fs.ts, stage.ts, commands.ts, App banner, IntroModal)
-- [ ] Merge stages 5+6 → 7 stages; rename egg6 files; eggs/top bar show egg names
-- [ ] Hint tiers 1–3, cap per difficulty, `n/max` prefix
-- [ ] Door announcements (App effect on stage `opened` flip)
-- [ ] `help` grouped (shell vs game), meanings of names; `man <cmd>` shows one entry
-- [ ] Aliases: `nano`, `vim`, `vi` → edit; `exit` → menu (hidden)
-- [ ] Editor keyboard: Esc/Ctrl+S from anywhere in the modal, Ctrl+O (nano save); intro `[ enter shell ]` autofocus
+- [x] Story + texts (fs.ts, stage.ts, commands.ts, App banner, IntroModal)
+- [x] Merge stages 5+6 → 7 stages; rename egg6 files; eggs/top bar show egg names
+- [x] Hint tiers 1–3, cap per difficulty, `n/max` prefix
+- [x] Door announcements (App effect on stage `opened` flip)
+- [x] `help` grouped (shell vs game), meanings of names; `man <cmd>` shows one entry
+- [x] Aliases: `nano`, `vim`, `vi` → edit; `exit` → menu (hidden)
+- [x] Editor keyboard: Esc/Ctrl+S from anywhere in the modal, Ctrl+O (nano save); intro `[ enter shell ]` autofocus
 - [ ] `scripts/story.mjs` → `docs/STORY.md`
 - [ ] Ghost-text autocomplete (→ / Tab accepts, double Tab lists candidates); mention in start/help/intro
-- [ ] Playthrough check updated
+- [x] Playthrough check updated (14 checks: bypasses, hint reset, door announce, new-commands nudge, nano alias, win)
 - [ ] Ship: vite base `./`, deploy.yml stray quote, package name, index.html egg count + og:url
 - [ ] README: minimal solution; MIT LICENSE; CLAUDE.md updated
 - [ ] You play `npm run preview` → merge to main → deploy
+
+## Inspiration: learnGitBranching (researched 2026-10-27)
+
+Its teaching model: each level opens with a short concept dialog, then the task. The goal is shown as a target picture, and the win is a **state comparison** (any path counts). The `hint` is one plain string. `show solution` replays the commands visibly, behind an "are you sure? I believe in you" confirm. `objective` re-shows the intro. Par scoring compares your command count to the solution's. `disabledMap` blocks commands per level.
+
+Already matching here: state-based wins (locks check state, not typed commands), objective (`eggs`), concept framing (every egg plus Hen's pointer), and in-world refusals instead of "command not found".
+
+Suggestions (pending your pick):
+- [ ] **Confirm before the exact tier.** The first time the tier with the exact commands is reached, print "The next hint is the exact answer. Type `hint` again if you want it." This fits "hints only after trying". Effort S.
+- [ ] **Command count on the win.** Print "You used N commands (Hen's way: 19)". It adds replay value. Effort S.
+- [ ] **Replay the solution (`hint` tier 3 as typed commands).** Skip: it spoils the doing.
+
+Not copied: goal graph and animations (monochrome CLI rule), level select/sandbox/builder (one world), i18n machinery, and a free solution reveal (the egg text is the reward).
 
 ## Done (condensed history)
 
@@ -58,7 +71,7 @@ Branch: `finish-polish`. Small unsigned commits per step.
 
 ## Reference notes (implemented behavior)
 
-- **Difficulty table**: stage output full/partial/label/silent; hint tiers easy 1→2, medium 0→1, hard 0→0, impossible forbidden; map always/toggle/toggle/hidden; help full except impossible (exits only).
+- **Difficulty table**: eggs objective full/full/name only/silent; hint tiers start at 1, caps easy 3, medium 2, hard 1, impossible none; map always/toggle/toggle/hidden; help full except impossible (exits only).
 - **`rm`**: only user-created nodes inside `/home/player`; refuses non-empty dirs; no `-r`.
-- **Editor modal**: `Cmd+S`/`Ctrl+S` OS-aware save, `Esc` cancels.
+- **Editor modal**: `Cmd+S`/`Ctrl+S`/`Ctrl+O` save, `Esc` cancels, from anywhere in the modal.
 - **Save system**: `save`/`load` via UTF-8-safe base64 (`v: 1`); autosave to `localStorage["eggshell-autosave"]` on every in-game state change.

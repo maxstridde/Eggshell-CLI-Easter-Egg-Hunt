@@ -1,6 +1,6 @@
 import { Difficulty, FsNode, GameState, initialState } from "../types";
-import { EGGS, TIDY_EGG, fileContent, findNode, hasBackup, lockedAt, resolvePath } from "./fs";
-import { STAGES, activeStageIndex, hintExhausted, recordHint, stageHint, stageOf } from "./stage";
+import { EGGS, ROOT_EGG, TIDY_EGG, fileContent, findNode, hasBackup, lockedAt, resolvePath } from "./fs";
+import { STAGES, activeStageIndex, hintExhausted, nextEggLine, recordHint, stageHint } from "./stage";
 import { exportSave, importSave } from "./save";
 
 export interface CmdContext {
@@ -19,43 +19,47 @@ export interface CmdContext {
 
 export type CommandHandler = (args: string[], ctx: CmdContext) => void;
 
-// minStage: 0-based STAGES index from which the entry shows in `help`.
+// minStage: 0-based STAGES index (= egg being hunted) from which the entry
+// shows in `help`. Descriptions say what the abbreviation stands for, so the
+// name means something instead of being memorised.
 interface HelpEntry {
   cmd: string;
   desc: string;
   minStage: number;
+  game?: true; // game command, listed separately from the shell commands
 }
 
 const HELP_ENTRIES: HelpEntry[] = [
-  { cmd: "start",                    desc: "how to begin", minStage: 0 },
-  { cmd: "help [all]",               desc: "show this message  (help all: show every command)", minStage: 0 },
-  { cmd: "clear / cls",              desc: "clear the screen", minStage: 0 },
-  { cmd: "pwd",                      desc: "print current directory", minStage: 0 },
-  { cmd: "ls [path]",                desc: "list directory contents", minStage: 0 },
-  { cmd: "cd <path>",                desc: "change directory  (cd with no arg goes home, .. goes up)", minStage: 0 },
-  { cmd: "cat <file>",               desc: "print file contents", minStage: 0 },
-  { cmd: "wifi list",                desc: "show available Wi-Fi networks", minStage: 0 },
-  { cmd: "wifi connect <SSID>",      desc: "connect to a Wi-Fi network", minStage: 0 },
-  { cmd: "mkdir <name>",             desc: "create a new directory (inside /home/player)", minStage: 1 },
-  { cmd: "touch <name>",             desc: "create an empty file", minStage: 1 },
-  { cmd: "rm <file...>",             desc: "remove files or empty directories  (rm *.tmp removes every match)", minStage: 2 },
-  { cmd: "mv <file> <dest>",         desc: "move or rename a file", minStage: 2 },
-  { cmd: "cp <file> <dest>",         desc: "copy a file", minStage: 3 },
-  { cmd: "edit <file>",              desc: "open the built-in text editor", minStage: 3 },
-  { cmd: "base64 -d <string|file>",  desc: "decode a base64 string or file", minStage: 4 },
-  { cmd: "sudo <command>",           desc: "run a command as administrator (requires password)", minStage: 4 },
-  { cmd: "unzip <file>",             desc: "extract a zip archive in the current directory", minStage: 6 },
-  { cmd: "grep [-r] <text> <target>", desc: "search file contents for matching lines (-r: whole directory)", minStage: 7 },
-  { cmd: "eggs",                     desc: "show collected eggs", minStage: 0 },
-  { cmd: "stage",                    desc: "show current stage objective", minStage: 0 },
-  { cmd: "hint [N]",                 desc: "get a hint for stage N (or current stage)", minStage: 0 },
-  { cmd: "difficulty [level]",       desc: "show or set difficulty (easy/medium/hard/impossible)", minStage: 0 },
-  { cmd: "map",                      desc: "toggle the map panel (medium/hard)", minStage: 0 },
-  { cmd: "save",                     desc: "export game progress to a save string", minStage: 0 },
-  { cmd: "load <string>",            desc: "restore game progress from a save string", minStage: 0 },
-  { cmd: "menu",                     desc: "pause and return to the main menu", minStage: 0 },
-  { cmd: "asciizoo <animal>",        desc: "fetch ASCII art  (asciizoo list for all animals)", minStage: 0 },
+  { cmd: "pwd",                       desc: "print working directory — where am I?", minStage: 0 },
+  { cmd: "ls [path]",                 desc: "list — show what's in a folder", minStage: 0 },
+  { cmd: "cd <path>",                 desc: "change directory  (cd .. goes up, cd alone goes home)", minStage: 0 },
+  { cmd: "cat <file>",                desc: "concatenate — print a file's contents", minStage: 0 },
+  { cmd: "clear",                     desc: "clear the screen", minStage: 0 },
+  { cmd: "man <command>",             desc: "manual — explain one command", minStage: 0 },
+  { cmd: "wifi list | connect <name>", desc: "manage Wi-Fi  (EggshellOS only — real systems differ)", minStage: 0 },
+  { cmd: "mkdir <name>",              desc: "make directory — create a folder", minStage: 1 },
+  { cmd: "touch <file>",              desc: "touch a file: create it empty (or update its timestamp)", minStage: 1 },
+  { cmd: "rm <file...>",              desc: "remove files  (* matches any name: rm *.tmp)", minStage: 2 },
+  { cmd: "mv <file> <dest>",          desc: "move a file — or rename it", minStage: 2 },
+  { cmd: "cp <file> <dest>",          desc: "copy a file", minStage: 3 },
+  { cmd: "edit <file>",               desc: "open the text editor  (nano and vim work too)", minStage: 3 },
+  { cmd: "base64 -d <text>",          desc: "decode base64 text back into plain text", minStage: 4 },
+  { cmd: "sudo <command>",            desc: "superuser do — run one command as the administrator", minStage: 4 },
+  { cmd: "unzip <file>",              desc: "extract a .zip archive", minStage: 5 },
+  { cmd: "grep [-r] <text> <path>",   desc: "global regular expression print — search inside files (-r: a whole folder)", minStage: 6 },
+  { cmd: "start",                     desc: "how to begin", minStage: 0, game: true },
+  { cmd: "help [all]",                desc: "this list  (all: every command, even later ones)", minStage: 0, game: true },
+  { cmd: "eggs",                      desc: "your eggs so far, and what's next", minStage: 0, game: true },
+  { cmd: "hint [N]",                  desc: "a hint for the current egg (or egg N) — ask again for more", minStage: 0, game: true },
+  { cmd: "difficulty [level]",        desc: "show or set difficulty (easy/medium/hard/impossible)", minStage: 0, game: true },
+  { cmd: "map",                       desc: "toggle the map panel (medium/hard)", minStage: 0, game: true },
+  { cmd: "save / load <string>",      desc: "export progress as a string / restore it", minStage: 0, game: true },
+  { cmd: "menu",                      desc: "back to the main menu (progress is kept)", minStage: 0, game: true },
+  { cmd: "asciizoo <animal>",         desc: "ASCII animals  (asciizoo list)", minStage: 0, game: true },
 ];
+
+// Hidden aliases: work, but stay out of `help` and Tab completion.
+const HIDDEN = ["quit", "exit", "stage", "vi", "cls"];
 
 const IMPOSSIBLE_HELP_TEXT = `Commands available on impossible difficulty:
   help                     this message  (help all shows everything)
@@ -208,38 +212,44 @@ export const commands: Record<string, CommandHandler> = {
     const idx = activeStageIndex(ctx.state);
     const level = showAll || idx < 0 ? 99 : idx;
     const visible = HELP_ENTRIES.filter((e) => e.minStage <= level);
-    ctx.print("Available commands:", "text-emerald-300");
-    for (const e of visible) {
-      ctx.print(`  ${e.cmd.padEnd(32)} ${e.desc}`);
-    }
+    const row = (e: HelpEntry) => ctx.print(`  ${e.cmd.padEnd(28)} ${e.desc}`);
+    ctx.print("Shell commands:", "text-emerald-300");
+    visible.filter((e) => !e.game).forEach(row);
     ctx.print("");
-    if (!showAll) {
-      ctx.print("  help all                         show all commands regardless of stage", "text-stone-400");
-    }
+    ctx.print("Game commands:", "text-emerald-300");
+    visible.filter((e) => e.game).forEach(row);
     ctx.print("");
-    ctx.print("Tip: paths starting with / are absolute. '~' = /home/player. '..' goes up.", "text-stone-400");
+    if (level !== 99) ctx.print("More commands appear here as you find eggs.", "text-stone-400");
+    ctx.print("Paths: / starts at the top, ~ is your home, .. is one folder up. Tab completes names.", "text-stone-400");
+  },
+
+  man: (args, ctx) => {
+    const name = args[0] === "nano" || args[0] === "vim" || args[0] === "vi" ? "edit" : args[0];
+    const e = HELP_ENTRIES.find((h) => h.cmd.split(" ")[0] === name);
+    if (!e) {
+      ctx.print(name ? `man: no manual entry for ${name}` : "man: which command? e.g. `man ls`", "text-red-400");
+      return;
+    }
+    ctx.print(`${e.cmd}`, "text-emerald-300");
+    ctx.print(`  ${e.desc}`);
   },
 
   start: (_, ctx) => {
-    ctx.print("Welcome to Eggshell! Here is how to begin:", "text-emerald-300");
+    ctx.print("Welcome to Eggshell.", "text-emerald-300");
+    ctx.print("This is a shell: you type a command, press Enter, and the computer answers.");
+    ctx.print("Commands are short — mostly abbreviations of English words.");
     ctx.print("");
-    ctx.print("  1. Type `cat README.txt` to read the intro file.");
-    ctx.print("  2. Type `ls` to see what is in your home directory.");
-    ctx.print("  3. Type `stage` at any time to see your current objective.");
+    ctx.print("  ls               list what's in this folder");
+    ctx.print("  cat README.txt   print a file to the screen");
+    ctx.print("  help             every command you can use, and what its name means");
     ctx.print("");
-    ctx.print("Your first mission: get online. Try `wifi list`.", "text-yellow-300");
+    ctx.print("Tab completes commands and file names. Stuck? Type `hint` — ask again for more.", "text-stone-400");
   },
 
   clear: () => { /* handled at UI level */ },
   cls: () => { /* handled at UI level */ },
 
   pwd: (_, ctx) => ctx.print(ctx.cwd),
-
-  stage: (_, ctx) => {
-    const text = stageOf(ctx.state);
-    if (text) ctx.print(text, "text-yellow-300");
-    // silent on impossible (stageOf returns "")
-  },
 
   hint: (args, ctx) => {
     const { difficulty } = ctx.state;
@@ -252,7 +262,7 @@ export const commands: Record<string, CommandHandler> = {
     if (args[0]) {
       const n = parseInt(args[0], 10);
       if (isNaN(n) || n < 1 || n > STAGES.length) {
-        ctx.print(`hint: invalid stage number '${args[0]}' — use 1 to ${STAGES.length}`, "text-red-400");
+        ctx.print(`hint: no egg #${args[0]} — use 1 to ${STAGES.length}`, "text-red-400");
         return;
       }
       stageIndex = n - 1;
@@ -264,7 +274,7 @@ export const commands: Record<string, CommandHandler> = {
       return;
     }
     if (!h) {
-      ctx.print("hint: no hint available for that stage", "text-stone-400");
+      ctx.print("hint: no hint available for that egg", "text-stone-400");
       return;
     }
     ctx.print(h, "text-yellow-300");
@@ -356,13 +366,13 @@ export const commands: Record<string, CommandHandler> = {
   },
 
   eggs: (_, ctx) => {
-    const found = ctx.state.eggsFound;
-    if (found.length === 0) {
-      ctx.print("No eggs yet. Keep exploring!", "text-yellow-300");
-      return;
-    }
-    ctx.print(`Eggs found: ${found.length} / ${EGGS.length}`, "text-yellow-300");
-    found.forEach((p, i) => ctx.print(`  ${i + 1}. ${p}`));
+    const found = EGGS.filter((e) => ctx.state.eggsFound.includes(e));
+    ctx.print(`Eggs: ${found.length} / ${EGGS.length}`, "text-yellow-300");
+    EGGS.forEach((e, i) => {
+      if (found.includes(e)) ctx.print(`  🥚 #${i + 1} ${STAGES[i].name}`);
+    });
+    const next = nextEggLine(ctx.state);
+    if (next) ctx.print(next, "text-yellow-300");
   },
 
   ls: (args, ctx) => {
@@ -471,8 +481,11 @@ export const commands: Record<string, CommandHandler> = {
     const content = override ?? (node?.kind === "file" ? fileContent(node, ctx.state) : userFile?.content ?? "");
     ctx.print(content.trimEnd());
 
-    if (EGGS.includes(target)) {
+    if (EGGS.includes(target) && !ctx.state.eggsFound.includes(target)) {
       ctx.setState((s) => (s.eggsFound.includes(target) ? s : { ...s, eggsFound: [...s.eggsFound, target] }));
+      // The egg just read completes its stage; the next stage may bring commands.
+      const next = EGGS.indexOf(target) + 1;
+      if (HELP_ENTRIES.some((e) => e.minStage === next)) ctx.print("(new commands available — see `help`)", "text-stone-400");
     }
   },
 
@@ -623,7 +636,7 @@ export const commands: Record<string, CommandHandler> = {
         ctx.passwordPrompt((pwd) => {
           if (pwd === "yolk-yolk-123") {
             ctx.setState((s) => ({ ...s, wifiConnected: true, wifiSSID: "EggHunt-5G" }));
-            ctx.print("Connected to EggHunt-5G — you are ONLINE.", "text-emerald-300");
+            ctx.print("Connected to EggHunt-5G — you're online.", "text-emerald-300");
           } else {
             ctx.print("wifi: authentication failed — wrong password", "text-red-400");
           }
@@ -747,9 +760,6 @@ export const commands: Record<string, CommandHandler> = {
     }
     if (removed.length === 0) return;
     const update = (s: GameState) => withTidy({ ...s, userCreated: s.userCreated.filter((u) => !removed.includes(u.path)) });
-    if (update(ctx.state).userCreated.some((u) => u.path === EGGS[2]) && !ctx.state.userCreated.some((u) => u.path === EGGS[2])) {
-      ctx.print("Something new appeared in ~/secrets…", "text-yellow-300");
-    }
     ctx.setState(update);
   },
 
@@ -782,9 +792,6 @@ export const commands: Record<string, CommandHandler> = {
         userCreated: [...s.userCreated.filter((u) => u.path !== src && u.path !== dst), { ...entry, path: dst }],
       }, dst, "file"));
     ctx.print(`moved '${args[0]}' → ${dst}`, "text-emerald-300");
-    if (update(ctx.state).userCreated.some((u) => u.path === EGGS[2]) && !ctx.state.userCreated.some((u) => u.path === EGGS[2])) {
-      ctx.print("Something new appeared in ~/secrets…", "text-yellow-300");
-    }
     ctx.setState(update);
   },
 
@@ -831,28 +838,15 @@ export const commands: Record<string, CommandHandler> = {
       ctx.print(`unzip: ${args[0]}: not a zip file`, "text-red-400");
       return;
     }
-    if (target === "/root/final_egg.zip") {
-      const outPath = "/root/final_egg.txt";
-      const already = ctx.state.userCreated.some((u) => u.path === outPath);
-      if (already) {
-        ctx.print("unzip: final_egg.txt already extracted.", "text-stone-400");
+    if (target === "/root/egg6.zip") {
+      const outPath = EGGS[5];
+      if (ctx.state.userCreated.some((u) => u.path === outPath)) {
+        ctx.print("unzip: egg6.txt already extracted.", "text-stone-400");
         return;
       }
-      const eggContent =
-        "🏆 EGG #6 — 'THE PRIZE' 🏆\n" +
-        "You made it to /root. Congratulations.\n" +
-        "\n" +
-        "Skills demonstrated:\n" +
-        "  ls · cd · cat · mkdir · touch · rm · mv · cp\n" +
-        "  edit · wifi · base64 -d · unzip · sudo\n" +
-        "\n" +
-        "Six eggs down — seriously impressive work.\n" +
-        "\n" +
-        "But wait. While you were breaking in here, something wrote to the\n" +
-        "system logs. /var just unlocked. One egg is still out there,\n" +
-        "and the logs know where it went.\n";
-      ctx.print("Archive:  final_egg.zip", "text-stone-400");
-      ctx.print("  inflating: final_egg.txt", "text-emerald-300");
+      const eggContent = ROOT_EGG;
+      ctx.print("Archive:  egg6.zip", "text-stone-400");
+      ctx.print("  inflating: egg6.txt", "text-emerald-300");
       ctx.setState((s) => ({
         ...s,
         userCreated: [...s.userCreated, { type: "file", path: outPath, content: eggContent }],
@@ -984,7 +978,12 @@ export const commands: Record<string, CommandHandler> = {
   },
 };
 
-// Tab completion (deliberately undocumented — silent reward for shell users).
+// Aliases: real editor names for experienced users; exit/stage/vi hidden.
+commands.nano = commands.vim = commands.vi = commands.edit;
+commands.exit = commands.quit;
+commands.stage = commands.eggs;
+
+// Tab completion.
 // First token completes command names; later tokens complete paths.
 // Returns the completed input line, or null if nothing to complete.
 export function completeInput(raw: string, root: FsNode, state: GameState, cwd: string): string | null {
@@ -1001,7 +1000,7 @@ export function completeInput(raw: string, root: FsNode, state: GameState, cwd: 
 
   if (parts.length === 1) {
     return finish(
-      Object.keys(commands).filter((c) => c !== "quit" && c.startsWith(last)),
+      Object.keys(commands).filter((c) => !HIDDEN.includes(c) && c.startsWith(last)),
       " "
     );
   }

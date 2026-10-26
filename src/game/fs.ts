@@ -35,7 +35,7 @@ export const EGGS = [
   "/home/player/secrets/egg3.txt", // created by tidying ~/secrets (userCreated)
   "/home/player/vault/egg4.txt",
   "/home/player/admin/egg5.txt",
-  "/root/final_egg.txt", // created by unzip (userCreated)
+  "/root/egg6.txt", // created by unzip (userCreated)
   "/var/backups/egg7.txt",
 ];
 
@@ -46,24 +46,36 @@ const upTo = (s: GameState, n: number) => EGGS.slice(0, n).every((e) => s.eggsFo
 // The original secrets.cfg; any player file with exactly this content counts as a backup.
 const SECRETS_CFG =
   "# secrets.cfg — access control for protected directories\n" +
-  "# house rule: back up this file before you change it\n" +
+  "# house rule: make a backup copy of this file before you change it\n" +
   "\n" +
   "path_to_vault_locked = true\n";
 export const hasBackup = (s: GameState) =>
   s.userCreated.some((u) => u.type === "file" && u.content === SECRETS_CFG);
 
+// Every egg: what you did, something worth knowing, Hen's pointer to the next.
+// Egg texts name actions in full words (remove, move, copy), never command names
+// the player hasn't been told about — `help` explains the abbreviations.
 export const TIDY_EGG =
-  "🥚 EGG #3 FOUND — 'The Janitor' 🥚\n" +
-  "You deleted the junk and filed the report where it belongs.\n" +
+  "🥚 EGG #3 of 7 — The Janitor\n" +
+  "You removed the junk and moved the report where it belongs.\n" +
   "\n" +
-  "Skills demonstrated:\n" +
-  "  rm  — remove files (rm *.tmp removes every match at once)\n" +
-  "  mv  — move or rename a file\n" +
+  "Careful out there: a real shell has no trash can. What you remove is gone.\n" +
+  "Renaming is just moving to a new name — the same command does both.\n" +
+  "Real disks fill up exactly like this: caches, temp files, half-done downloads.\n" +
   "\n" +
-  "Real disks fill up exactly like this: caches, temp files, downloads.\n" +
-  "Careful with rm — a real shell has no trash can.\n" +
+  "Next: the vault door is set in secrets.cfg. Mind my house rule.  — Hen\n";
+
+export const ROOT_EGG =
+  "🥚 EGG #6 of 7 — The Root\n" +
+  "You entered the administrator's home and unpacked an archive.\n" +
   "\n" +
-  "Clean work. A tidy home is a fast home.\n";
+  "/root is kept apart from /home on purpose: the admin's files stay\n" +
+  "safe even when a user's home is a mess.\n" +
+  "Archives pack many files into one. .zip is everywhere; on Linux you'll\n" +
+  "often meet .tar.gz instead (unpacked with: tar -xzf file.tar.gz).\n" +
+  "\n" +
+  "Next: something just wrote to the system logs, and /var is open now.\n" +
+  "Nobody reads logs line by line.  — Hen\n";
 
 // --- The actual filesystem ----------------------------------------------
 
@@ -76,7 +88,7 @@ export function buildFilesystem(): FsNode {
       ),
       file(
         "issue",
-        "EggshellOS 1.0 — Welcome, player. Type `help` to get started.\n"
+        "EggshellOS 1.0 — eggshell.local\n"
       ),
       dir("cron.d", [
         file(
@@ -102,11 +114,8 @@ export function buildFilesystem(): FsNode {
       ),
       file(
         "privilege.cfg",
-        "# /etc/privilege.cfg — system privilege configuration\n" +
-          "# This file requires elevated access to modify.\n" +
-          "#\n" +
-          "# Settings here control which accounts hold administrative rights\n" +
-          "# on this machine. Incorrect values may have unexpected side effects.\n" +
+        "# /etc/privilege.cfg — who holds administrative rights on this machine\n" +
+          "# Only root may change this file.\n" +
           "\n" +
           "allow_admin=false\n" +
           "default_user=player    # default is 'player'; also accepts 'admin'\n",
@@ -127,73 +136,52 @@ export function buildFilesystem(): FsNode {
     ]),
     dir("home", [
       dir("player", [
-        file("README.txt", (s) => {
-          const base =
-            "=== WELCOME TO EGGSHELL ===\n" +
+        file("README.txt", (s) =>
+          "Hello, whoever you are.\n" +
             "\n" +
-            "You are sitting at a fresh terminal. Your mission:\n" +
-            "find the 7 hidden easter eggs scattered through this system.\n" +
+            "I'm Hen, the admin of this machine. I retire tomorrow, and before\n" +
+            "I go I've hidden seven eggs on this system. Each one holds\n" +
+            "something I think is worth knowing. Find them all and the\n" +
+            "machine is yours.\n" +
             "\n" +
-            "Useful commands:\n" +
-            "  help        — show the command list\n" +
-            "  ls          — list files in the current directory\n" +
-            "  cat <file>  — print a file\n" +
-            "  pwd         — print current path\n" +
+            "The first egg is in ~/documents. That door stays shut\n" +
+            "while this machine is offline.\n" +
+            (isHardOrWorse(s) ? "" : "I always keep the network settings in /etc.\n") +
+            (isEasy(s) ? "`help` lists the commands you can use.\n" : "") +
             "\n" +
-            "Something is preventing you from exploring further.\n";
-          if (isHardOrWorse(s)) return base;
-          return (
-            base +
-            "The system keeps network information in /etc.\n" +
-            (isEasy(s) ? "Try `ls /etc` and read what you find there.\n" : "")
-          );
-        }),
+            "— Hen\n"
+        ),
         file("notes.txt", (s) =>
-          isHardOrWorse(s)
-            ? "Player's notebook:\n" +
-              "- First egg is said to be in ~/documents/ — but that directory is LOCKED.\n" +
-              "- Somewhere in this home folder, a special directory must be created.\n" +
-              "  And something left inside it.\n"
-            : "Player's notebook:\n" +
-              "- First egg is said to be in ~/documents/\n" +
-              "  But that directory is LOCKED.\n" +
-              "  You need to be connected to a network to enter.\n" +
-              "- Somewhere in this home folder, a special directory must be created.\n" +
-              "  And something left inside it — like proof you were there.\n" +
-              "  Only then will a certain door open...\n" +
-              (isEasy(s)
-                ? "- PS: the `wifi` command manages networks. Passwords tend to\n" +
-                  "  sit in config files — and config files live in /etc.\n"
-                : "")
+          "Sticky notes on Hen's monitor:\n" +
+            "- ~ is short for your home folder: /home/player\n" +
+            "- .. means one folder up. `cd ..` takes you there.\n" +
+            "- in `ls`, a name ending in / is a folder.\n" +
+            (isHardOrWorse(s) ? "" : "- wifi password? wrote it down somewhere in /etc\n")
         ),
         dir("documents", [
           file(
             "egg1.txt",
-            "🥚 EGG #1 FOUND — 'The Starter' 🥚\n" +
-              "You connected to a network and found your way here.\n" +
+            "🥚 EGG #1 of 7 — The Signal\n" +
+              "You read a password out of a config file and used it to get online.\n" +
               "\n" +
-              "Skills demonstrated:\n" +
-              "  wifi list / wifi connect — network management\n" +
-              "  ls                       — list directory contents\n" +
-              "  cd                       — navigate the filesystem\n" +
+              "A confession: `wifi` exists only here on EggshellOS.\n" +
+              "Real systems each have their own words for it:\n" +
+              "  Linux    nmcli device wifi connect <name> password <password>\n" +
+              "  macOS    networksetup -setairportnetwork en0 <name> <password>\n" +
+              "  Windows  netsh wlan connect name=<name>\n" +
+              "Different words, same idea. Commands differ; concepts travel.\n" +
+              "And passwords lying around in plain text files? Happens more than it should.\n" +
               "\n" +
-              "On real machines, /etc/network/interfaces or NetworkManager\n" +
-              "handle this. On macOS: System Settings → Wi-Fi.\n" +
-              "Config files store secrets. Now you know.\n" +
-              "\n" +
-              "Brilliant start — you're already thinking like a shell user. Keep going!\n"
+              "Next: I left a riddle right here in documents/.  — Hen\n"
           ),
           file("clue2.riddle", (s) =>
-            "Riddle #2:\n" +
-              "  'Deep in the player's home there is a hollow.\n" +
-              "   Fill it with a folder called magic,\n" +
-              "   and inside that folder, leave a token.\n" +
-              "   Only then will the secrets room open its gates.'\n" +
-              (isEasy(s)
-                ? "\n(In plain words: in your home folder, create a directory\n" +
-                  " named magic, and create a file named token.txt inside it.\n" +
-                  " `help` lists the commands for both.)\n"
-                : "")
+            "A riddle from Hen:\n" +
+              "\n" +
+              "  In your home there is room for something new.\n" +
+              "  Make it magic — a folder by that very name.\n" +
+              "  Then leave a token inside, token.txt,\n" +
+              "  to prove you were there. My secrets will open to you.\n" +
+              (isEasy(s) ? "\n(A folder you make; a file you leave. `help` knows how to do both.)\n" : "")
           ),
         ], {
           locked: (s) => !s.wifiConnected,
@@ -212,37 +200,35 @@ export function buildFilesystem(): FsNode {
           ),
           file(
             "egg2.txt",
-            "🥚 EGG #2 FOUND — 'The Builder' 🥚\n" +
-              "You created a directory and a file from scratch.\n" +
+            "🥚 EGG #2 of 7 — The Builder\n" +
+              "You made a folder and a file out of nothing.\n" +
               "\n" +
-              "Skills demonstrated:\n" +
-              "  mkdir  — create a directory\n" +
-              "  touch  — create an empty file\n" +
+              "The command for files was really built to update a file's timestamp —\n" +
+              "to \"touch\" it. Creating an empty file when none exists was a side effect,\n" +
+              "and now everyone uses it for exactly that.\n" +
+              "Every project on every computer started like this: one folder, one file.\n" +
               "\n" +
-              "Every project starts this way.\n" +
-              "Filesystems are built one node at a time.\n" +
-              "\n" +
-              "Nicely done — you're building, not just browsing. That's the real skill.\n"
+              "Next: sorry about the mess in here. quota.txt says what needs doing.  — Hen\n"
           ),
           file(
             "editor-tips.txt",
-            "=== Using `edit` ===\n" +
-              "`edit <filename>` opens a tiny built-in text editor.\n" +
-              "  - Change lines, then save with Ctrl+S (Cmd+S on Mac) or [save].\n" +
-              "  - Esc or [cancel] quits without saving.\n" +
+            "=== The editor ===\n" +
+              "`edit <file>` opens a small text editor. (nano and vim work too.)\n" +
+              "  - change the text, then save with Ctrl+S (Cmd+S on Mac)\n" +
+              "  - Esc leaves without saving\n" +
               "\n" +
-              "Before changing a config, copy it:  cp <file> <file>.bak\n" +
-              "If the edit goes wrong, the backup has the original.\n"
+              "House rule: back up before you change. A copy named <file>.bak\n" +
+              "is the custom — if the edit goes wrong, the original is safe.\n"
           ),
           file("quota.txt", (s) =>
             s.userCreated.some((u) => u.path === EGGS[2])
-              ? "secrets/ is within quota. Thank you!\n"
-              : "!! secrets/ is over quota !!\n" +
-                "- delete the temporary files (*.tmp)\n" +
-                "- file report.txt where documents belong\n" +
+              ? "~/secrets is within quota. Thank you!  — Hen\n"
+              : "!! ~/secrets is over quota !!\n" +
+                "- the temporary files (*.tmp) can go\n" +
+                "- report.txt is a document — it belongs with the other documents\n" +
                 (isEasy(s)
-                  ? "\n(`rm <file>` deletes a file, `rm *.tmp` deletes every .tmp at once.\n" +
-                    " `mv <file> <dir>/` moves a file into another directory.)\n"
+                  ? "\n(`help` lists commands to remove and to move files.\n" +
+                    " * is a wildcard: *.tmp means every name ending in .tmp)\n"
                   : "")
           ),
         ], {
@@ -251,79 +237,55 @@ export function buildFilesystem(): FsNode {
         dir("vault", [
           file(
             "egg4.txt",
-            "🥚 EGG #4 FOUND — 'The Editor' 🥚\n" +
-              "You backed up a config file, then changed a value.\n" +
+            "🥚 EGG #4 of 7 — The Editor\n" +
+              "You made a backup, changed one line, and a door opened.\n" +
               "\n" +
-              "Skills demonstrated:\n" +
-              "  cp    — copy a file (your safety net)\n" +
-              "  edit  — modify a text file in the built-in editor\n" +
+              "That's how real systems are run: settings live in plain text files\n" +
+              "(~/.ssh/config, /etc/hosts), and one changed line changes behaviour.\n" +
+              "Real editors: nano is the friendly one; vim is powerful and famous\n" +
+              "for being hard to quit. (Stuck in vim? Press Esc, type :q! and Enter.)\n" +
               "\n" +
-              "Real systems work exactly like this:\n" +
-              "/etc/nginx/nginx.conf, ~/.ssh/config, /etc/fstab —\n" +
-              "a line changed, a service restarted.\n" +
-              "Config files are the API of the system.\n" +
-              "\n" +
-              "You just bent the system to your will with one edit. That's power — well earned.\n"
+              "Next: the admin password is in this vault. Not in plain text — I learned that much.  — Hen\n"
           ),
           file(
             "sudo_clue.json",
             "# structured credential token\n" +
-              "# field values that are encoded must be decoded before use\n" +
-              "# this file can be decoded in full, but only one field matters\n" +
+              "# encoded field values must be decoded before use\n" +
               "\n" +
               "{\n" +
               "  \"token_type\":  \"system-credential\",\n" +
-              "  \"issued_by\":   \"eggshell-vault\",\n" +
-              "  \"expires\":     \"never\",\n" +
-              "  \"note\":        \"you can read the metadata just fine — clever, right?\",\n" +
+              "  \"issued_by\":   \"hen\",\n" +
+              "  \"expires\":     \"tomorrow\",\n" +
               "  \"passphrase\":  \"c2VjcmV0LWVnZw==\"\n" +
               "}\n"
           ),
-          file("how-to-sudo.txt", (s) => {
-            const base =
-              "=== sudo ===\n" +
-              "`sudo` runs a single command as the administrator (root).\n" +
-              "Syntax:  sudo <command> <args...>\n" +
-              "\n" +
-              "You will be asked for the admin password.\n";
-            if (isHardOrWorse(s)) return base;
-            return (
-              base +
-              "The credential is stored somewhere in this vault.\n" +
-              "Look around — encoded things can be decoded.\n" +
-              (isEasy(s)
-                ? "(The passphrase in sudo_clue.json is base64 —\n" +
-                  " `base64 -d <value>` turns it back into plain text.)\n"
-                : "")
-            );
-          }),
+          file("how-to-sudo.txt", (s) =>
+            "=== sudo ===\n" +
+              "sudo means \"superuser do\": run one command as the administrator (root).\n" +
+              "  sudo <command> <args...>\n" +
+              "You'll be asked for the admin password.\n" +
+              (isHardOrWorse(s)
+                ? ""
+                : "\n" +
+                  "The password isn't stored in plain text. But encoded isn't encrypted.\n" +
+                  "Who counts as an admin is written in /etc — and only root may change that.\n") +
+              (isEasy(s) ? "(That file is /etc/privilege.cfg. `help` lists a decoder.)\n" : "")
+          ),
         ], {
           locked: (s) => !s.secretsUnlocked || !upTo(s, 3),
         }),
         dir("admin", [
           file(
             "egg5.txt",
-            "🥚 EGG #5 FOUND — 'The Administrator' 🥚\n" +
-              "You ran a command as root and changed a system-level config.\n" +
+            "🥚 EGG #5 of 7 — The Administrator\n" +
+              "You decoded a password and used it to make yourself an admin.\n" +
               "\n" +
-              "Skills demonstrated:\n" +
-              "  sudo  — execute as administrator\n" +
-              "  edit  — modify a protected file\n" +
+              "base64 is an encoding, not encryption: anyone can reverse it, no key needed.\n" +
+              "It exists to carry any data as plain letters — through email, URLs, configs.\n" +
+              "sudo has a Windows twin: right-click → \"Run as administrator\".\n" +
+              "Use it sparingly. Root can break anything, and never asks twice.\n" +
               "\n" +
-              "In real systems, sudo gives temporary root access.\n" +
-              "Every Linux server relies on this — from installing packages\n" +
-              "to editing /etc/sudoers itself.\n" +
-              "You now understand the basics of privilege escalation.\n" +
-              "\n" +
-              "Root is almost yours. You've come impressively far.\n"
-          ),
-          file(
-            "admin-note.txt",
-            "You are in ~/admin — a directory that required editing /etc/privilege.cfg.\n" +
-              "Real-world equivalents: /etc/sudoers, group policies, ACLs.\n" +
-              "\n" +
-              "Admin access here grants elevated capabilities.\n" +
-              "The root of this machine may now be within reach.\n"
+              "Next: /root, my own home, is open to admins now. The first time, ask as root.  — Hen\n"
           ),
         ], {
           locked: (s) => !s.adminUnlocked || !upTo(s, 4),
@@ -332,7 +294,7 @@ export function buildFilesystem(): FsNode {
     ]),
     dir("root", [
       file(
-        "final_egg.zip",
+        "egg6.zip",
         "[binary archive]\n"
       ),
     ], {
@@ -342,31 +304,31 @@ export function buildFilesystem(): FsNode {
       dir("log", [
         file(
           "auth.log",
-          "Apr 12 06:25:01 host01 CRON[882]: pam_unix(cron:session): session opened for user root\n" +
-            "Apr 12 06:25:03 host01 CRON[882]: pam_unix(cron:session): session closed for user root\n" +
-            "Apr 12 07:14:22 host01 sshd[1203]: Failed password for invalid user admin from 10.0.0.5 port 51122\n" +
-            "Apr 12 07:14:25 host01 sshd[1203]: Connection closed by invalid user admin 10.0.0.5 port 51122\n" +
-            "Apr 12 08:02:11 host01 sudo:   player : TTY=pts/0 ; PWD=/home/player ; COMMAND=/usr/bin/edit /etc/privilege.cfg\n" +
-            "Apr 12 08:02:11 host01 sudo: pam_unix(sudo:session): session opened for user root\n" +
-            "Apr 12 08:02:14 host01 sudo: pam_unix(sudo:session): session closed for user root\n" +
-            "Apr 12 08:31:47 host01 sshd[1490]: Accepted publickey for player from 10.0.0.9 port 40018\n"
+          "Apr 12 06:25:01 eggshell CRON[882]: pam_unix(cron:session): session opened for user root\n" +
+            "Apr 12 06:25:03 eggshell CRON[882]: pam_unix(cron:session): session closed for user root\n" +
+            "Apr 12 07:14:22 eggshell sshd[1203]: Failed password for invalid user admin from 10.0.0.5 port 51122\n" +
+            "Apr 12 07:14:25 eggshell sshd[1203]: Connection closed by invalid user admin 10.0.0.5 port 51122\n" +
+            "Apr 12 08:02:11 eggshell sudo:   hen : TTY=pts/0 ; PWD=/root ; COMMAND=/usr/bin/nano /etc/privilege.cfg\n" +
+            "Apr 12 08:02:11 eggshell sudo: pam_unix(sudo:session): session opened for user root\n" +
+            "Apr 12 08:02:14 eggshell sudo: pam_unix(sudo:session): session closed for user root\n" +
+            "Apr 12 08:31:47 eggshell sshd[1490]: Accepted publickey for hen from 10.0.0.9 port 40018\n"
         ),
         file(
           "syslog",
-          "Apr 12 06:25:01 host01 rsyslogd: [origin software=\"rsyslogd\"] rsyslogd was HUPed\n" +
-            "Apr 12 06:30:00 host01 systemd[1]: Starting Daily apt download activities...\n" +
-            "Apr 12 06:30:02 host01 systemd[1]: apt-daily.service: Succeeded.\n" +
-            "Apr 12 06:47:19 host01 kernel: [ 8123.442] usb 1-2: new high-speed USB device number 4\n" +
-            "Apr 12 07:00:00 host01 systemd[1]: logrotate.service: Succeeded.\n" +
-            "Apr 12 07:12:38 host01 NetworkManager[610]: <info> device (wlan0): state change: activated\n" +
-            "Apr 12 07:55:03 host01 easterd[312]: sweep complete — one asset still unaccounted for\n" +
-            "Apr 12 07:55:04 host01 easterd[312]: relocating asset to /var/backups/egg7.txt\n" +
-            "Apr 12 07:55:04 host01 easterd[312]: asset secured. nobody reads the logs anyway.\n" +
-            "Apr 12 08:00:00 host01 systemd[1]: Starting Cleanup of Temporary Directories...\n" +
-            "Apr 12 08:00:01 host01 systemd[1]: systemd-tmpfiles-clean.service: Succeeded.\n" +
-            "Apr 12 08:17:44 host01 kernel: [13544.108] audit: type=1400 apparmor=\"ALLOWED\" profile=\"lsb_release\"\n" +
-            "Apr 12 08:30:00 host01 systemd[1]: Starting Rotate log files...\n" +
-            "Apr 12 08:30:01 host01 systemd[1]: logrotate.service: Succeeded.\n"
+          "Apr 12 06:25:01 eggshell rsyslogd: [origin software=\"rsyslogd\"] rsyslogd was HUPed\n" +
+            "Apr 12 06:30:00 eggshell systemd[1]: Starting Daily apt download activities...\n" +
+            "Apr 12 06:30:02 eggshell systemd[1]: apt-daily.service: Succeeded.\n" +
+            "Apr 12 06:47:19 eggshell kernel: [ 8123.442] usb 1-2: new high-speed USB device number 4\n" +
+            "Apr 12 07:00:00 eggshell systemd[1]: logrotate.service: Succeeded.\n" +
+            "Apr 12 07:12:38 eggshell NetworkManager[610]: <info> device (wlan0): state change: activated\n" +
+            "Apr 12 07:55:03 eggshell easterd[312]: sweep complete — one asset still unaccounted for\n" +
+            "Apr 12 07:55:04 eggshell easterd[312]: relocating asset to /var/backups/egg7.txt\n" +
+            "Apr 12 07:55:04 eggshell easterd[312]: asset secured. nobody reads the logs anyway.\n" +
+            "Apr 12 08:00:00 eggshell systemd[1]: Starting Cleanup of Temporary Directories...\n" +
+            "Apr 12 08:00:01 eggshell systemd[1]: systemd-tmpfiles-clean.service: Succeeded.\n" +
+            "Apr 12 08:17:44 eggshell kernel: [13544.108] audit: type=1400 apparmor=\"ALLOWED\" profile=\"lsb_release\"\n" +
+            "Apr 12 08:30:00 eggshell systemd[1]: Starting Rotate log files...\n" +
+            "Apr 12 08:30:01 eggshell systemd[1]: logrotate.service: Succeeded.\n"
         ),
         file(
           "dpkg.log",
@@ -382,26 +344,23 @@ export function buildFilesystem(): FsNode {
       dir("backups", [
         file(
           "egg7.txt",
-          "🥚 EGG #7 FOUND — 'The Investigator' 🥚\n" +
-            "You didn't read the logs. You searched them. That's the way.\n" +
+          "🥚 EGG #7 of 7 — The Investigator\n" +
+            "You didn't read the logs. You searched them.\n" +
             "\n" +
-            "Skills demonstrated:\n" +
-            "  grep     — search file contents for matching lines\n" +
-            "  grep -r  — search a whole directory tree\n" +
+            "grep stands for \"global regular expression print\": it prints every\n" +
+            "line that matches. The same move finds real problems:\n" +
+            "  grep error app.log                    lines containing \"error\"\n" +
+            "  grep -r \"Failed password\" /var/log    search a whole folder\n" +
             "\n" +
-            "This is how real problems get found:\n" +
-            "  grep -r \"error\" /var/log\n" +
-            "  grep \"Failed password\" /var/log/auth.log\n" +
-            "The needle never stood a chance.\n" +
+            "That's all seven. You've hatched — the shell is yours now.\n" +
             "\n" +
-            "That's all seven eggs — the hunt is complete. Outstanding work.\n" +
+            "Try a real terminal next:\n" +
+            "  macOS    Applications → Utilities → Terminal\n" +
+            "  Windows  install WSL, then open Ubuntu\n" +
+            "  Linux    you're already home\n" +
+            "Almost everything you typed here works there unchanged — except wifi and edit.\n" +
             "\n" +
-            "Now go try a real shell:\n" +
-            "  Windows: install WSL — open the Ubuntu app\n" +
-            "  macOS:   Applications → Utilities → Terminal\n" +
-            "  Linux:   you're already home\n" +
-            "\n" +
-            "Type `eggs` to admire your collection. You've earned it.\n"
+            "Thank you for playing.  — Hen\n"
         ),
       ]),
     ], {

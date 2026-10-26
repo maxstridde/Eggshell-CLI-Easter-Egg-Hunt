@@ -4,7 +4,7 @@
 import { Difficulty, GameState, TerminalUser, initialState } from "../types";
 
 export const SAVE_KEY = "eggshell-autosave";
-export const SAVE_VERSION = 2; // v2: 8 stages / 7 eggs, v1 saves are not compatible
+export const SAVE_VERSION = 2; // v2: 7 eggs = 7 stages, v1 saves are not compatible
 
 function encodeBase64(obj: unknown): string {
   const json = JSON.stringify(obj);

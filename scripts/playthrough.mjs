@@ -29,7 +29,7 @@ try {
   };
 
   // Former bypasses must be denied on a fresh game.
-  for (const cmd of ["cat ~/documents/egg1.txt", "ls /root", "unzip /root/final_egg.zip", "edit ~/secrets/secrets.cfg", "cat /var/backups/egg7.txt", "sudo ls"]) {
+  for (const cmd of ["cat ~/documents/egg1.txt", "ls /root", "unzip /root/egg6.zip", "edit ~/secrets/secrets.cfg", "cat /var/backups/egg7.txt", "sudo ls"]) {
     await run(cmd);
     check(/locked|denied|don't know/i.test(await last()), `denied: ${cmd}`);
   }
@@ -42,14 +42,16 @@ try {
   check((await last()) !== tier1 && /riddle/i.test(await last()), "hint resets to nudge after mkdir");
   await run("difficulty easy");
   await run("touch magic/token.txt");
+  check(/secrets just unlocked/.test(await last()), "door announcement after touch");
   await run("cat ~/secrets/egg2.txt");
+  check(/new commands/.test(await last()), "new-commands nudge after egg 2");
   await run("cd ~/secrets"); await run("rm report.txt");
   check(/still needed/.test(await last()), "rm report.txt refused");
   await run("rm *.tmp"); await run("mv report.txt ~/documents/");
   await run("cat egg3.txt");
   await run("edit secrets.cfg");
   check(/back/.test(await last()), "edit refused without backup");
-  await run("cp secrets.cfg secrets.cfg.bak"); await run("edit secrets.cfg");
+  await run("cp secrets.cfg secrets.cfg.bak"); await run("nano secrets.cfg");
   await editReplace("path_to_vault_locked = true", "path_to_vault_locked = false");
   await run("cat ~/vault/egg4.txt");
   await run("base64 -d c2VjcmV0LWVnZw==");
@@ -59,12 +61,12 @@ try {
   await run("cd /root");
   check(/denied/i.test(await last()), "cd /root without sudo denied");
   await run("sudo cd /root"); await password("secret-egg");
-  await run("unzip final_egg.zip"); await run("cat final_egg.txt");
+  await run("unzip egg6.zip"); await run("cat egg6.txt");
   await run("grep -r egg /var/log"); await run("cat /var/backups/egg7.txt");
-  await run("stage");
+  await run("eggs");
   const bar = await page.locator("text=🥚").first().innerText();
   check(bar.includes("7/7"), `egg counter: ${bar.trim()}`);
-  check(/COMPLETE/.test(await last()), "stage shows COMPLETE");
+  check(/hatched/.test(await last()), "eggs shows the win");
   if (failures) console.log("\n--- last output ---\n" + (await out()).split("\n").slice(-25).join("\n"));
 } finally {
   await browser.close();

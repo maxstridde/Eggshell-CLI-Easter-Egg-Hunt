@@ -22,10 +22,10 @@ export function IntroModal({
   const [loadError, setLoadError] = useState("");
 
   const difficultyLabels: { value: Difficulty; label: string; desc: string }[] = [
-    { value: "easy", label: "Easy", desc: "full guidance" },
-    { value: "medium", label: "Medium", desc: "partial hints" },
-    { value: "hard", label: "Hard", desc: "stage name only" },
-    { value: "impossible", label: "Impossible", desc: "total silence" },
+    { value: "easy", label: "Easy", desc: "hints go all the way" },
+    { value: "medium", label: "Medium", desc: "hints stop before the answer" },
+    { value: "hard", label: "Hard", desc: "one nudge per egg" },
+    { value: "impossible", label: "Impossible", desc: "no hints, no map" },
   ];
 
   const mapNote: Record<Difficulty, string> = {
@@ -53,18 +53,18 @@ export function IntroModal({
         </div>
         <div className="space-y-3 text-sm leading-6">
           <p>
-            You are a new user on <span className="text-emerald-300">eggshell.local</span>.
-            The system hides <span className="text-yellow-300">7 easter eggs</span>. Your job
-            is to find them all by typing commands — no mouse, no buttons, no icons.
+            Hen, the admin of <span className="text-emerald-300">eggshell.local</span>, retires
+            tomorrow. Before leaving, Hen hid <span className="text-yellow-300">7 eggs</span> on
+            the machine and handed the account to you. Each egg is behind a door only the
+            command line can open — no mouse, no icons.
           </p>
           <p>
-            Along the way you'll learn how real systems get unlocked: connecting Wi-Fi,
-            creating, moving &amp; copying files, editing config files with a CLI text editor,
-            decoding a base64 clue, and escalating privileges with <code>sudo</code>.
+            Along the way you'll get online, build and tidy folders, edit config files,
+            become an administrator and search the system logs — real skills, learned by doing.
           </p>
           <p className="text-stone-400">
-            Type <code className="text-emerald-300">start</code> to begin, or try the{" "}
-            <code className="text-emerald-300">help</code> command.
+            Type <code className="text-emerald-300">start</code> to begin.{" "}
+            <kbd className="text-emerald-300">Tab</kbd> completes commands and file names.
           </p>
         </div>
 
@@ -145,6 +145,7 @@ export function IntroModal({
             )}
           </div>
           <button
+            autoFocus
             onClick={onClose}
             className="px-4 py-2 border border-emerald-600 text-emerald-300 hover:bg-emerald-600/20"
           >

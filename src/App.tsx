@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { FsNode, GameState, initialState } from "./types";
 import { EGGS, buildFilesystem } from "./game/fs";
 import { commands, completeInput, isClear } from "./game/commands";
-import { stageLabel, tickHint } from "./game/stage";
+import { STAGES, activeStageIndex, doorOpen, tickHint } from "./game/stage";
 import { loadAutosave, writeAutosave } from "./game/save";
 import { getTheme } from "./terminal/theme";
 import { EditorModal } from "./terminal/EditorModal";
@@ -53,7 +53,8 @@ export default function App() {
   // Initial banner
   useEffect(() => {
     setLines([
-      { text: "EggshellOS 1.0 — terminal session started", cls: "text-emerald-300" },
+      { text: "EggshellOS 1.0 — eggshell.local", cls: "text-emerald-300" },
+      { text: "Last login: Apr 12 08:31 by hen. Account handed over to: player.", cls: "text-stone-400" },
       { text: "type `start` to begin.", cls: "text-stone-400" },
       { text: "" },
     ]);
@@ -71,6 +72,17 @@ export default function App() {
     if (showIntro) return;
     writeAutosave(state);
   }, [state, showIntro]);
+
+  // Door announcements: within the same stage, a way to the egg just opened.
+  // A stage change (egg read, load) only re-baselines, so nothing replays.
+  const door = useRef({ idx: activeStageIndex(state), open: false });
+  useEffect(() => {
+    const idx = activeStageIndex(state);
+    const open = doorOpen(idx, state);
+    const announce = STAGES[idx]?.announce;
+    if (idx === door.current.idx && open && !door.current.open && announce) print(announce, "text-yellow-300");
+    door.current = { idx, open };
+  }, [state]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -206,7 +218,9 @@ export default function App() {
             </button>
           )}
           <span>🥚 {found}/{totalEggs}</span>
-          <span className="hidden sm:inline">· stage: <span className="text-yellow-300">{stageLabel(state)}</span></span>
+          {state.difficulty !== "impossible" && activeStageIndex(state) >= 0 && (
+            <span className="hidden sm:inline">· next: <span className="text-yellow-300">{STAGES[activeStageIndex(state)].name}</span></span>
+          )}
         </div>
       </div>
 

@@ -22,7 +22,17 @@ export function EditorModal({
   useEffect(() => taRef.current?.focus(), []);
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-40">
+    // Keys on the wrapper, so they work from the buttons too. Ctrl+O = nano's save.
+    <div
+      className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-40"
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onCancel();
+        if ((e.key === "s" || e.key === "o") && (e.ctrlKey || e.metaKey)) {
+          e.preventDefault();
+          onSave(value);
+        }
+      }}
+    >
       <div className="w-full max-w-3xl border border-stone-700 bg-stone-950 text-emerald-200 shadow-2xl flex flex-col">
         <div className="flex items-center justify-between px-3 py-2 border-b border-stone-800 bg-stone-900">
           <div className="text-sm text-stone-300">edit — {path}</div>
@@ -33,13 +43,6 @@ export function EditorModal({
           value={value}
           onChange={(e) => setValue(e.target.value)}
           spellCheck={false}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") onCancel();
-            if (e.key === "s" && (e.ctrlKey || e.metaKey)) {
-              e.preventDefault();
-              onSave(value);
-            }
-          }}
           className="bg-black text-emerald-200 p-3 font-mono text-[14px] leading-6 outline-none resize-y min-h-[320px] caret-emerald-300"
         />
         <div className="flex justify-end gap-2 px-3 py-2 border-t border-stone-800 bg-stone-900">

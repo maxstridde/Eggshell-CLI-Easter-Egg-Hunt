@@ -34,6 +34,13 @@ try {
     check(/locked|denied|don't know/i.test(await last()), `denied: ${cmd}`);
   }
 
+  // Ghost text + Tab completion.
+  await input.fill("cat REA"); await page.waitForTimeout(40);
+  check((await page.locator("form .text-stone-600").innerText()) === "DME.txt", "ghost text suggests README.txt");
+  await input.press("Tab");
+  check((await input.inputValue()) === "cat README.txt", "Tab accepts the suggestion");
+  await input.fill("");
+
   await run("wifi connect EggHunt-5G"); await password("yolk-yolk-123");
   await run("cat ~/documents/egg1.txt");
   await run("difficulty medium"); await run("hint"); await run("hint");

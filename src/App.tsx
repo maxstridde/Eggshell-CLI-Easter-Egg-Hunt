@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { FsNode, GameState, initialState } from "./types";
 import { EGGS, buildFilesystem } from "./game/fs";
-import { commands, completeInput, isClear } from "./game/commands";
+import { candidates, commands, completeInput, isClear } from "./game/commands";
 import { STAGES, activeStageIndex, doorOpen, tickHint } from "./game/stage";
 import { loadAutosave, writeAutosave } from "./game/save";
 import { getTheme } from "./terminal/theme";
@@ -47,6 +47,7 @@ export default function App() {
   const inputRef = useRef<HTMLInputElement>(null);
   const firstRender = useRef(true);
   const failStreak = useRef(0); // consecutive commands that printed an error
+  const lastKeyTab = useRef(false);
 
   const theme = getTheme(state.terminalUser);
 
@@ -172,12 +173,24 @@ export default function App() {
     } else if (e.key === "l" && e.ctrlKey) {
       e.preventDefault();
       setLines([]);
-    } else if (e.key === "Tab") {
+    } else if (e.key === "Tab" || (e.key === "ArrowRight" && ghost && e.currentTarget.selectionStart === input.length)) {
       e.preventDefault();
       const completed = completeInput(input, root, state, cwd);
       if (completed !== null) setInput(completed);
+      // Second Tab with nothing left to complete lists the options (bash style).
+      else if (e.key === "Tab" && lastKeyTab.current) {
+        const list = candidates(input, root, state, cwd);
+        if (list.length > 1) {
+          setLines((prev) => [...prev, { text: "", prompt: `${prompt()} ${input}` }, { text: list.join("  "), cls: "text-stone-400" }]);
+        }
+      }
     }
+    lastKeyTab.current = e.key === "Tab";
   };
+
+  // Grey suggestion after the cursor: what Tab would add.
+  const completedLine = input.trim() ? completeInput(input, root, state, cwd) : null;
+  const ghost = completedLine?.startsWith(input) ? completedLine.slice(input.length) : "";
 
   useEffect(() => {
     if (!editor && !inlinePrompt) inputRef.current?.focus();
@@ -264,16 +277,23 @@ export default function App() {
                 <span className="sm:hidden">{cwd === "/home/player" ? "~" : cwd}{sudoActive ? "#" : "$"}</span>
                 <span className="hidden sm:inline">{prompt()}</span>
               </span>
-              <input
-                ref={inputRef}
-                autoFocus
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={onKeyDown}
-                spellCheck={false}
-                autoComplete="off"
-                className={`flex-1 bg-transparent outline-none ${theme.input} ${theme.caret}`}
-              />
+              <div className="relative flex-1">
+                {/* ghost text: invisible copy of the input, then the suggestion */}
+                <div aria-hidden className="absolute inset-0 pointer-events-none whitespace-pre overflow-hidden">
+                  <span className="invisible">{input}</span>
+                  <span className="text-stone-600">{ghost}</span>
+                </div>
+                <input
+                  ref={inputRef}
+                  autoFocus
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={onKeyDown}
+                  spellCheck={false}
+                  autoComplete="off"
+                  className={`relative w-full bg-transparent outline-none ${theme.input} ${theme.caret}`}
+                />
+              </div>
             </form>
           )}
         </div>

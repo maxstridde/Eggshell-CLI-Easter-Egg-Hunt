@@ -983,26 +983,14 @@ commands.nano = commands.vim = commands.vi = commands.edit;
 commands.exit = commands.quit;
 commands.stage = commands.eggs;
 
-// Tab completion.
+// Tab completion and ghost text share one source.
 // First token completes command names; later tokens complete paths.
-// Returns the completed input line, or null if nothing to complete.
-export function completeInput(raw: string, root: FsNode, state: GameState, cwd: string): string | null {
+// candidates() returns every matching token for the last word of `raw`.
+export function candidates(raw: string, root: FsNode, state: GameState, cwd: string): string[] {
   const parts = raw.split(/\s+/);
   const last = parts[parts.length - 1] ?? "";
-
-  const finish = (candidates: string[], trailer = "") => {
-    if (candidates.length === 0) return null;
-    const completion =
-      candidates.length === 1 ? candidates[0] + trailer : commonPrefix(candidates);
-    if (completion.length <= last.length) return null;
-    return raw.slice(0, raw.length - last.length) + completion;
-  };
-
   if (parts.length === 1) {
-    return finish(
-      Object.keys(commands).filter((c) => !HIDDEN.includes(c) && c.startsWith(last)),
-      " "
-    );
+    return Object.keys(commands).filter((c) => !HIDDEN.includes(c) && c.startsWith(last)).sort();
   }
 
   // Path completion: split the token into directory part + name prefix.
@@ -1013,7 +1001,7 @@ export function completeInput(raw: string, root: FsNode, state: GameState, cwd: 
   const node = findNode(root, dirPath);
 
   const names: string[] = [];
-  if (lockedAt(root, dirPath, state)) return null;
+  if (lockedAt(root, dirPath, state)) return [];
   if (node?.kind === "dir") {
     for (const c of node.children) names.push(c.name + (c.kind === "dir" ? "/" : ""));
   }
@@ -1021,7 +1009,20 @@ export function completeInput(raw: string, root: FsNode, state: GameState, cwd: 
     const parent = u.path.split("/").slice(0, -1).join("/") || "/";
     if (parent === dirPath) names.push(u.path.split("/").pop()! + (u.type === "dir" ? "/" : ""));
   }
-  return finish(names.filter((n) => n.startsWith(prefix)).map((n) => dirPart + n));
+  return names.filter((n) => n.startsWith(prefix)).map((n) => dirPart + n).sort();
+}
+
+// The completed input line (single match, or longest common prefix), or null
+// if that adds nothing.
+export function completeInput(raw: string, root: FsNode, state: GameState, cwd: string): string | null {
+  const list = candidates(raw, root, state, cwd);
+  if (list.length === 0) return null;
+  const parts = raw.split(/\s+/);
+  const last = parts[parts.length - 1] ?? "";
+  const trailer = parts.length === 1 ? " " : "";
+  const completion = list.length === 1 ? list[0] + trailer : commonPrefix(list);
+  if (completion.length <= last.length) return null;
+  return raw.slice(0, raw.length - last.length) + completion;
 }
 
 function commonPrefix(list: string[]): string {

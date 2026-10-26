@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { FsNode, GameState, initialState } from "./types";
-import { EGGS, buildFilesystem } from "./game/fs";
+import { EGGS, buildFilesystem, lastLogin } from "./game/fs";
 import { candidates, commands, completeInput, isClear } from "./game/commands";
 import { STAGES, activeStageIndex, countCommand, doorOpen, tickHint } from "./game/stage";
 import { loadAutosave, writeAutosave } from "./game/save";
@@ -55,7 +55,7 @@ export default function App() {
   useEffect(() => {
     setLines([
       { text: "EggshellOS 1.0 — eggshell.local", cls: "text-emerald-300" },
-      { text: "Last login: Apr 12 08:31 by hen. Account handed over to: player.", cls: "text-stone-400" },
+      { text: `Last login: ${lastLogin()} by hen. Account handed over to: player.`, cls: "text-stone-400" },
       { text: "type `start` to begin.", cls: "text-stone-400" },
       { text: "" },
     ]);

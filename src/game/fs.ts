@@ -28,6 +28,27 @@ const file = (
 const isEasy = (s: GameState) => s.difficulty === "easy";
 const isHardOrWorse = (s: GameState) => s.difficulty === "hard" || s.difficulty === "impossible";
 
+// Story dates follow the player's clock, so the machine never looks abandoned:
+// Hen's logs are from yesterday, the retirement is 3 days out (survives a
+// midnight mid-play). Computed at read time — nothing date-like is saved.
+const DAY = 86_400_000;
+const dayOf = (offset: number) => new Date(Date.now() + offset * DAY);
+const pad = (n: number) => String(n).padStart(2, "0");
+const sysDate = (d: Date) => `${d.toLocaleDateString("en-US", { month: "short" })} ${String(d.getDate()).padStart(2, " ")}`;
+const sysDay = (offset: number) => sysDate(dayOf(offset));
+const isoDay = (offset: number) => {
+  const d = dayOf(offset);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+// syslog stamp `minutes` from now — date and time from one Date, so midnight can't split them
+const stamp = (minutes: number) => {
+  const d = new Date(Date.now() + minutes * 60_000);
+  return `${sysDate(d)} ${d.toTimeString().slice(0, 8)}`;
+};
+export const retireDate = () =>
+  dayOf(3).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+export const lastLogin = () => `${sysDay(-1)} 08:31`;
+
 // Egg files in stage order. Reading one (cat) completes its stage.
 export const EGGS = [
   "/home/player/documents/egg1.txt",
@@ -139,10 +160,10 @@ export function buildFilesystem(): FsNode {
         file("README.txt", (s) =>
           "Hello, whoever you are.\n" +
             "\n" +
-            "I'm Hen, the admin of this machine. I retire tomorrow, and before\n" +
-            "I go I've hidden seven eggs on this system. Each one holds\n" +
-            "something I think is worth knowing. Find them all and the\n" +
-            "machine is yours.\n" +
+            "I'm Hen, the admin of this machine. I retire on " + retireDate() + ".\n" +
+            "Before I go, I've hidden seven eggs on this system. Each one\n" +
+            "holds something I think is worth knowing. Find them all and\n" +
+            "the machine is yours.\n" +
             "\n" +
             "The first egg is in ~/documents. That door stays shut\n" +
             "while this machine is offline.\n" +
@@ -249,13 +270,14 @@ export function buildFilesystem(): FsNode {
           ),
           file(
             "sudo_clue.json",
+            () =>
             "# structured credential token\n" +
               "# encoded field values must be decoded before use\n" +
               "\n" +
               "{\n" +
               "  \"token_type\":  \"system-credential\",\n" +
               "  \"issued_by\":   \"hen\",\n" +
-              "  \"expires\":     \"tomorrow\",\n" +
+              "  \"expires\":     \"" + isoDay(3) + "\",\n" +
               "  \"passphrase\":  \"c2VjcmV0LWVnZw==\"\n" +
               "}\n"
           ),
@@ -304,41 +326,45 @@ export function buildFilesystem(): FsNode {
       dir("log", [
         file(
           "auth.log",
-          "Apr 12 06:25:01 eggshell CRON[882]: pam_unix(cron:session): session opened for user root\n" +
-            "Apr 12 06:25:03 eggshell CRON[882]: pam_unix(cron:session): session closed for user root\n" +
-            "Apr 12 07:14:22 eggshell sshd[1203]: Failed password for invalid user admin from 10.0.0.5 port 51122\n" +
-            "Apr 12 07:14:25 eggshell sshd[1203]: Connection closed by invalid user admin 10.0.0.5 port 51122\n" +
-            "Apr 12 08:02:11 eggshell sudo:   hen : TTY=pts/0 ; PWD=/root ; COMMAND=/usr/bin/nano /etc/privilege.cfg\n" +
-            "Apr 12 08:02:11 eggshell sudo: pam_unix(sudo:session): session opened for user root\n" +
-            "Apr 12 08:02:14 eggshell sudo: pam_unix(sudo:session): session closed for user root\n" +
-            "Apr 12 08:31:47 eggshell sshd[1490]: Accepted publickey for hen from 10.0.0.9 port 40018\n"
+          () =>
+          sysDay(-1) + " 06:25:01 eggshell CRON[882]: pam_unix(cron:session): session opened for user root\n" +
+            sysDay(-1) + " 06:25:03 eggshell CRON[882]: pam_unix(cron:session): session closed for user root\n" +
+            sysDay(-1) + " 07:14:22 eggshell sshd[1203]: Failed password for invalid user admin from 10.0.0.5 port 51122\n" +
+            sysDay(-1) + " 07:14:25 eggshell sshd[1203]: Connection closed by invalid user admin 10.0.0.5 port 51122\n" +
+            sysDay(-1) + " 08:02:11 eggshell sudo:   hen : TTY=pts/0 ; PWD=/root ; COMMAND=/usr/bin/nano /etc/privilege.cfg\n" +
+            sysDay(-1) + " 08:02:11 eggshell sudo: pam_unix(sudo:session): session opened for user root\n" +
+            sysDay(-1) + " 08:02:14 eggshell sudo: pam_unix(sudo:session): session closed for user root\n" +
+            sysDay(-1) + " 08:31:47 eggshell sshd[1490]: Accepted publickey for hen from 10.0.0.9 port 40018\n"
         ),
         file(
           "syslog",
-          "Apr 12 06:25:01 eggshell rsyslogd: [origin software=\"rsyslogd\"] rsyslogd was HUPed\n" +
-            "Apr 12 06:30:00 eggshell systemd[1]: Starting Daily apt download activities...\n" +
-            "Apr 12 06:30:02 eggshell systemd[1]: apt-daily.service: Succeeded.\n" +
-            "Apr 12 06:47:19 eggshell kernel: [ 8123.442] usb 1-2: new high-speed USB device number 4\n" +
-            "Apr 12 07:00:00 eggshell systemd[1]: logrotate.service: Succeeded.\n" +
-            "Apr 12 07:12:38 eggshell NetworkManager[610]: <info> device (wlan0): state change: activated\n" +
-            "Apr 12 07:55:03 eggshell easterd[312]: sweep complete — one asset still unaccounted for\n" +
-            "Apr 12 07:55:04 eggshell easterd[312]: relocating asset to /var/backups/egg7.txt\n" +
-            "Apr 12 07:55:04 eggshell easterd[312]: asset secured. nobody reads the logs anyway.\n" +
-            "Apr 12 08:00:00 eggshell systemd[1]: Starting Cleanup of Temporary Directories...\n" +
-            "Apr 12 08:00:01 eggshell systemd[1]: systemd-tmpfiles-clean.service: Succeeded.\n" +
-            "Apr 12 08:17:44 eggshell kernel: [13544.108] audit: type=1400 apparmor=\"ALLOWED\" profile=\"lsb_release\"\n" +
-            "Apr 12 08:30:00 eggshell systemd[1]: Starting Rotate log files...\n" +
-            "Apr 12 08:30:01 eggshell systemd[1]: logrotate.service: Succeeded.\n"
+          () =>
+          sysDay(-1) + " 06:25:01 eggshell rsyslogd: [origin software=\"rsyslogd\"] rsyslogd was HUPed\n" +
+            sysDay(-1) + " 06:30:00 eggshell systemd[1]: Starting Daily apt download activities...\n" +
+            sysDay(-1) + " 06:30:02 eggshell systemd[1]: apt-daily.service: Succeeded.\n" +
+            sysDay(-1) + " 06:47:19 eggshell kernel: [ 8123.442] usb 1-2: new high-speed USB device number 4\n" +
+            sysDay(-1) + " 07:00:00 eggshell systemd[1]: logrotate.service: Succeeded.\n" +
+            sysDay(-1) + " 07:12:38 eggshell NetworkManager[610]: <info> device (wlan0): state change: activated\n" +
+            sysDay(-1) + " 08:00:00 eggshell systemd[1]: Starting Cleanup of Temporary Directories...\n" +
+            sysDay(-1) + " 08:00:01 eggshell systemd[1]: systemd-tmpfiles-clean.service: Succeeded.\n" +
+            sysDay(-1) + " 08:17:44 eggshell kernel: [13544.108] audit: type=1400 apparmor=\"ALLOWED\" profile=\"lsb_release\"\n" +
+            sysDay(-1) + " 08:30:00 eggshell systemd[1]: Starting Rotate log files...\n" +
+            sysDay(-1) + " 08:30:01 eggshell systemd[1]: logrotate.service: Succeeded.\n" +
+            // ponytail: easterd ran "just now" (read time), so the time moves on re-read
+            `${stamp(-2)} eggshell easterd[312]: sweep complete — one asset still unaccounted for\n` +
+            `${stamp(-1)} eggshell easterd[312]: relocating asset to /var/backups/egg7.txt\n` +
+            `${stamp(-1)} eggshell easterd[312]: asset secured. nobody reads the logs anyway.\n`
         ),
         file(
           "dpkg.log",
-          "2026-04-11 22:10:03 startup archives unpack\n" +
-            "2026-04-11 22:10:05 install curl:amd64 <none> 7.88.1-10\n" +
-            "2026-04-11 22:10:06 status installed curl:amd64 7.88.1-10\n" +
-            "2026-04-11 22:10:09 install jq:amd64 <none> 1.6-2.1\n" +
-            "2026-04-11 22:10:10 status installed jq:amd64 1.6-2.1\n" +
-            "2026-04-11 22:11:31 install tree:amd64 <none> 2.1.0-1\n" +
-            "2026-04-11 22:11:32 status installed tree:amd64 2.1.0-1\n"
+          () =>
+          isoDay(-2) + " 22:10:03 startup archives unpack\n" +
+            isoDay(-2) + " 22:10:05 install curl:amd64 <none> 7.88.1-10\n" +
+            isoDay(-2) + " 22:10:06 status installed curl:amd64 7.88.1-10\n" +
+            isoDay(-2) + " 22:10:09 install jq:amd64 <none> 1.6-2.1\n" +
+            isoDay(-2) + " 22:10:10 status installed jq:amd64 1.6-2.1\n" +
+            isoDay(-2) + " 22:11:31 install tree:amd64 <none> 2.1.0-1\n" +
+            isoDay(-2) + " 22:11:32 status installed tree:amd64 2.1.0-1\n"
         ),
       ]),
       dir("backups", [

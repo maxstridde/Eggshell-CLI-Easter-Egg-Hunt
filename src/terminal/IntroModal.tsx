@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Difficulty, GameState } from "../types";
 import { importSave } from "../game/save";
+import { retireDate } from "../game/fs";
 
 export function IntroModal({
   hasSave,
@@ -53,8 +54,8 @@ export function IntroModal({
         </div>
         <div className="space-y-3 text-sm leading-6">
           <p>
-            Hen, the admin of <span className="text-emerald-300">eggshell.local</span>, retires
-            tomorrow. Before leaving, Hen hid <span className="text-yellow-300">7 eggs</span> on
+            Hen, the admin of <span className="text-emerald-300">eggshell.local</span>, retires on
+            {retireDate()}. Before leaving, Hen hid <span className="text-yellow-300">7 eggs</span> on
             the machine and handed the account to you. Each egg is behind a door only the
             command line can open — no mouse, no icons.
           </p>

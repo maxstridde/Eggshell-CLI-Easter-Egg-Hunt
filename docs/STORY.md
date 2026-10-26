@@ -58,10 +58,10 @@ Door announcement: 🔓 ~/documents just unlocked.
 ```
 Hello, whoever you are.
 
-I'm Hen, the admin of this machine. I retire tomorrow, and before
-I go I've hidden seven eggs on this system. Each one holds
-something I think is worth knowing. Find them all and the
-machine is yours.
+I'm Hen, the admin of this machine. I retire on Friday, October 30.
+Before I go, I've hidden seven eggs on this system. Each one
+holds something I think is worth knowing. Find them all and
+the machine is yours.
 
 The first egg is in ~/documents. That door stays shut
 while this machine is offline.
@@ -76,10 +76,10 @@ I always keep the network settings in /etc.
 ```
 Hello, whoever you are.
 
-I'm Hen, the admin of this machine. I retire tomorrow, and before
-I go I've hidden seven eggs on this system. Each one holds
-something I think is worth knowing. Find them all and the
-machine is yours.
+I'm Hen, the admin of this machine. I retire on Friday, October 30.
+Before I go, I've hidden seven eggs on this system. Each one
+holds something I think is worth knowing. Find them all and
+the machine is yours.
 
 The first egg is in ~/documents. That door stays shut
 while this machine is offline.
@@ -93,10 +93,10 @@ I always keep the network settings in /etc.
 ```
 Hello, whoever you are.
 
-I'm Hen, the admin of this machine. I retire tomorrow, and before
-I go I've hidden seven eggs on this system. Each one holds
-something I think is worth knowing. Find them all and the
-machine is yours.
+I'm Hen, the admin of this machine. I retire on Friday, October 30.
+Before I go, I've hidden seven eggs on this system. Each one
+holds something I think is worth knowing. Find them all and
+the machine is yours.
 
 The first egg is in ~/documents. That door stays shut
 while this machine is offline.
@@ -357,7 +357,7 @@ Door announcement: 🔓 ~/admin just unlocked.
 {
   "token_type":  "system-credential",
   "issued_by":   "hen",
-  "expires":     "tomorrow",
+  "expires":     "2026-10-30",
   "passphrase":  "c2VjcmV0LWVnZw=="
 }
 ```
@@ -482,20 +482,20 @@ Objective (eggs): Find out where the last egg went.
 ### /var/log/syslog
 
 ```
-Apr 12 06:25:01 eggshell rsyslogd: [origin software="rsyslogd"] rsyslogd was HUPed
-Apr 12 06:30:00 eggshell systemd[1]: Starting Daily apt download activities...
-Apr 12 06:30:02 eggshell systemd[1]: apt-daily.service: Succeeded.
-Apr 12 06:47:19 eggshell kernel: [ 8123.442] usb 1-2: new high-speed USB device number 4
-Apr 12 07:00:00 eggshell systemd[1]: logrotate.service: Succeeded.
-Apr 12 07:12:38 eggshell NetworkManager[610]: <info> device (wlan0): state change: activated
-Apr 12 07:55:03 eggshell easterd[312]: sweep complete — one asset still unaccounted for
-Apr 12 07:55:04 eggshell easterd[312]: relocating asset to /var/backups/egg7.txt
-Apr 12 07:55:04 eggshell easterd[312]: asset secured. nobody reads the logs anyway.
-Apr 12 08:00:00 eggshell systemd[1]: Starting Cleanup of Temporary Directories...
-Apr 12 08:00:01 eggshell systemd[1]: systemd-tmpfiles-clean.service: Succeeded.
-Apr 12 08:17:44 eggshell kernel: [13544.108] audit: type=1400 apparmor="ALLOWED" profile="lsb_release"
-Apr 12 08:30:00 eggshell systemd[1]: Starting Rotate log files...
-Apr 12 08:30:01 eggshell systemd[1]: logrotate.service: Succeeded.
+Oct 26 06:25:01 eggshell rsyslogd: [origin software="rsyslogd"] rsyslogd was HUPed
+Oct 26 06:30:00 eggshell systemd[1]: Starting Daily apt download activities...
+Oct 26 06:30:02 eggshell systemd[1]: apt-daily.service: Succeeded.
+Oct 26 06:47:19 eggshell kernel: [ 8123.442] usb 1-2: new high-speed USB device number 4
+Oct 26 07:00:00 eggshell systemd[1]: logrotate.service: Succeeded.
+Oct 26 07:12:38 eggshell NetworkManager[610]: <info> device (wlan0): state change: activated
+Oct 26 08:00:00 eggshell systemd[1]: Starting Cleanup of Temporary Directories...
+Oct 26 08:00:01 eggshell systemd[1]: systemd-tmpfiles-clean.service: Succeeded.
+Oct 26 08:17:44 eggshell kernel: [13544.108] audit: type=1400 apparmor="ALLOWED" profile="lsb_release"
+Oct 26 08:30:00 eggshell systemd[1]: Starting Rotate log files...
+Oct 26 08:30:01 eggshell systemd[1]: logrotate.service: Succeeded.
+Oct 27 00:43:34 eggshell easterd[312]: sweep complete — one asset still unaccounted for
+Oct 27 00:44:34 eggshell easterd[312]: relocating asset to /var/backups/egg7.txt
+Oct 27 00:44:34 eggshell easterd[312]: asset secured. nobody reads the logs anyway.
 ```
 
 ### /var/backups/egg7.txt

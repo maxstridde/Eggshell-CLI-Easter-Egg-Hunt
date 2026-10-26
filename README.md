@@ -23,8 +23,10 @@ Reading an `eggN.txt` with `cat` collects it. Win = all 7.
 ## Features
 
 - `help` reveals commands progressively, with the meaning of each name. `man <cmd>` explains one in detail.
-- `hint` escalates in 3 tiers (nudge, direction, exact commands), capped by difficulty: easy 3, medium 2, hard 1, impossible none. Change with `difficulty <level>`.
-- Tab completion for commands and paths. `nano` and `vim` are aliases of `edit`.
+- `hint` escalates in 3 tiers (nudge, direction, exact commands), capped by difficulty: easy 3, medium 2, hard 1, impossible none. Before the exact answer it asks once more. Change with `difficulty <level>`.
+- Autocomplete: a grey suggestion follows your typing; Tab or → accepts, a second Tab lists all matches. `nano` and `vim` are aliases of `edit`.
+- The win screen compares your command count with Hen's way (21 commands, the solution below).
+- Story dates follow your clock: Hen logged in yesterday and retires in three days, whenever you play.
 - `save` / `load <string>` export and restore progress; the game also autosaves to localStorage.
 - A map panel shows the filesystem (always on for easy, `map` toggles it otherwise).
 - Arrow keys walk history, `Ctrl+L` clears the screen.

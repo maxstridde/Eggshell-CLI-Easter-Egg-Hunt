@@ -47,7 +47,8 @@ Branch: `finish-polish`. Small unsigned commits per step.
 - [x] `help` grouped (shell vs game), meanings of names; `man <cmd>` shows one entry
 - [x] Aliases: `nano`, `vim`, `vi` → edit; `exit` → menu (hidden)
 - [x] Editor keyboard: Esc/Ctrl+S from anywhere in the modal, Ctrl+O (nano save); intro `[ enter shell ]` autofocus
-- [x] Playthrough check updated (14 checks: bypasses, hint reset, door announce, new-commands nudge, nano alias, win)
+- [x] Story dates follow the player's clock (logs yesterday, retirement in 3 days, never saved)
+- [x] Playthrough check updated (19 checks: bypasses, hint reset, door announce, new-commands nudge, nano alias, win)
 
 ## Inspiration: learnGitBranching (researched 2026-10-27)
 
@@ -57,7 +58,7 @@ Already matching here: state-based wins (locks check state, not typed commands),
 
 Suggestions (both adopted 2026-10-27):
 - [x] **Confirm before the exact tier.** The first time the tier with the exact commands is reached, print "The next hint is the exact answer. Type `hint` again if you want it." This fits "hints only after trying". Effort S.
-- [x] **Command count on the win.** Print "You used N commands (Hen's way: 19)". It adds replay value. Effort S.
+- [x] **Command count on the win.** Print "You used N commands (Hen's way: 21)". It adds replay value. Effort S.
 - [ ] **Replay the solution (`hint` tier 3 as typed commands).** Skip: it spoils the doing.
 
 Not copied: goal graph and animations (monochrome CLI rule), level select/sandbox/builder (one world), i18n machinery, and a free solution reveal (the egg text is the reward).
@@ -75,4 +76,4 @@ Not copied: goal graph and animations (monochrome CLI rule), level select/sandbo
 - **Difficulty table**: eggs objective full/full/name only/silent; hint tiers start at 1, caps easy 3, medium 2, hard 1, impossible none; map always/toggle/toggle/hidden; help full except impossible (exits only).
 - **`rm`**: only user-created nodes inside `/home/player`; refuses non-empty dirs; no `-r`.
 - **Editor modal**: `Cmd+S`/`Ctrl+S`/`Ctrl+O` save, `Esc` cancels, from anywhere in the modal.
-- **Save system**: `save`/`load` via UTF-8-safe base64 (`v: 1`); autosave to `localStorage["eggshell-autosave"]` on every in-game state change.
+- **Save system**: `save`/`load` via UTF-8-safe base64 (`v: 2`); autosave to `localStorage["eggshell-autosave"]` on every in-game state change.

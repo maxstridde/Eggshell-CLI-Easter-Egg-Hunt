@@ -78,6 +78,10 @@ Four help levels: 0 = the world (files, eggs, door announcements), then `hint` t
 
 Escalation state is `state.hint {key, asks, since}` (not saved). The key is stage + `step` + door-open, so sub-progress restarts at the nudge; 8 commands without asking drop a tier; difficulty change and load reset it. On easy/medium, 3 failed commands in a row print "stuck? try `hint`". Before the exact tier (easy only) one extra `hint` is required ("The next hint is the exact answer…"). `state.commands` counts commands while hunting; the win shows it against `HEN_WAY` (21, the README solution). When a stage's `opened` flips within the stage, App prints its `announce` line.
 
+### Story dates
+
+Dates follow the player's clock (helpers at the top of `fs.ts`, computed at read time, never saved): banner "Last login" and Hen's logs are yesterday, dpkg.log two days ago, the easterd syslog lines a minute ago, and Hen retires 3 days out (`retireDate()` in README.txt, IntroModal, `sudo_clue.json` expires), so a midnight mid-play doesn't break the story. `docs/STORY.md` therefore shows the dates of the day it was generated.
+
 ### Password prompts
 
 Inline in the terminal (not a modal). `passwordPrompt()` sets `inlinePrompt` state, rendering a `type="password"` input inline. Escape cancels.
@@ -86,7 +90,7 @@ Inline in the terminal (not a modal). `passwordPrompt()` sets `inlinePrompt` sta
 
 All serialization lives in `src/game/save.ts` (`exportSave` / `importSave` / `loadAutosave` / `writeAutosave`).
 
-- `save` — UTF-8-safe base64 JSON (`v: 1`), printed + copied to clipboard
+- `save` — UTF-8-safe base64 JSON (`v: 2`, explicit fields; `hint` is not saved), printed + copied to clipboard
 - `load <string>` — `importSave` returns `GameState` or an error message string
 - Autosaves to `localStorage["eggshell-autosave"]` on every state change — suppressed while the intro overlay is open, so pre-restore changes (e.g. picking a difficulty) can't clobber the saved game before `[ restore save ]` is clicked
 

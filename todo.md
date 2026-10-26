@@ -34,12 +34,12 @@ Branch: `finish-polish`. Small unsigned commits per step.
 
 ## Work items
 
-- [ ] `scripts/story.mjs` → `docs/STORY.md`
+- [x] `scripts/story.mjs` → `docs/STORY.md`
+- [x] CLAUDE.md updated
+- [ ] You play `npm run preview` → merge to main → deploy
 - [x] Ghost-text autocomplete (→ / Tab accepts, double Tab lists candidates); mention in start/help/intro
 - [x] Ship: vite base `./`, deploy.yml stray quote, package name, index.html egg count + og:url
 - [x] README: minimal solution; MIT LICENSE
-- [ ] CLAUDE.md updated
-- [ ] You play `npm run preview` → merge to main → deploy
 - [x] Story + texts (fs.ts, stage.ts, commands.ts, App banner, IntroModal)
 - [x] Merge stages 5+6 → 7 stages; rename egg6 files; eggs/top bar show egg names
 - [x] Hint tiers 1–3, cap per difficulty, `n/max` prefix

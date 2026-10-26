@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-**Eggshell** — browser-based terminal emulator game for CLI education. Players complete a 7-stage easter-egg hunt learning real shell concepts (`ls`, `cd`, `cat`, `mkdir`, `touch`, `rm`, `edit`, `sudo`, `base64`, `unzip`, `grep`). It is a *training shell*, not a real one.
+**Eggshell** — browser-based terminal emulator game for CLI education. Story: Hen, the retiring admin of eggshell.local, hid 7 eggs; one egg = one stage. Players learn real shell concepts (`ls`, `cd`, `cat`, `mkdir`, `touch`, `rm`, `mv`, `cp`, `edit`, `sudo`, `base64`, `unzip`, `grep`) by doing, not from a command list. It is a *training shell*, not a real one.
 
 ## Commands
 
@@ -12,7 +12,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm run dev      # Vite dev server
 npm run build    # single self-contained HTML via vite-plugin-singlefile
 npm run preview  # preview production build
-npx tsc --noEmit # type-check (no test runner configured)
+npx tsc --noEmit # type-check
+npm run build && node scripts/playthrough.mjs  # Playwright smoke test: full solution + bypass checks
+node scripts/story.mjs  # dump every player-facing text in order → docs/STORY.md
 ```
 
 ## Architecture
@@ -30,7 +32,7 @@ src/
   game/
     fs.ts          — FsNode tree (all file content), path helpers, fileContent()
     commands.ts    — command handlers, CmdContext (print, openEditor, openMenu, passwordPrompt…)
-    stage.ts       — STAGES, stageOf(), stageLabel(), stageHint(), activeStageIndex()
+    stage.ts       — STAGES (egg name, goal, hints, gate/step/opened/announce), stageHint(), nextEggLine(), tick/recordHint()
     save.ts        — exportSave/importSave, loadAutosave/writeAutosave (single source)
   utils/cn.ts      — clsx + tailwind-merge
 ```
@@ -47,34 +49,34 @@ FS nodes can carry `locked: (state: GameState) => boolean`; `ls` and `cd` evalua
 
 `onEdit` callbacks in `fs.ts` return `{ error: string | null, patch?: Partial<GameState> }`. The `edit` command in `commands.ts` applies the patch — **do not mutate state inside `onEdit`**.
 
-### The 7-stage puzzle
+### The 7 eggs (egg = stage)
 
-| Stage | Gate | Unlocks |
-|---|---|---|
-| 1 OFFLINE | `wifi connect EggHunt-5G` (pw: `yolk-yolk-123`) | `/home/player/documents` → egg1 |
-| 2 CREATE | `mkdir magic` + `touch magic/token.txt` | `/home/player/secrets` → egg2 |
-| 3 EDIT | `edit secrets.cfg` → set `path_to_vault_locked = false` | `/home/player/vault` → egg3 |
-| 4 DECODE | `base64 -d` the passphrase in `sudo_clue.json` → `secret-egg` | knowledge gate |
-| 5 SUDO | `sudo edit /etc/privilege.cfg` → set `allow_admin = true` | `/home/player/admin` → egg4 + `/root` |
-| 6 ROOT | `sudo cd /root`, `unzip final_egg.zip`, `cat final_egg.txt` | egg5 + `/var` |
-| 7 SEARCH | `grep -r egg /var/log` → path in syslog → `cat /var/backups/egg6.txt` | egg6 + win |
+| # | Egg | Gate | Unlocks |
+|---|---|---|---|
+| 1 | The Signal | `wifi connect EggHunt-5G` (pw in `/etc/wifi.json`) | `~/documents` → egg1 |
+| 2 | The Builder | `mkdir ~/magic` + `touch ~/magic/token.txt` | `~/secrets` → egg2 |
+| 3 | The Janitor | `rm` the `*.tmp` + `mv report.txt ~/documents/` | egg3 appears in `~/secrets` |
+| 4 | The Editor | `cp secrets.cfg <backup>` (house rule), then `edit` → `path_to_vault_locked = false` | `~/vault` → egg4 |
+| 5 | The Administrator | `base64 -d` the passphrase → `secret-egg`; `sudo edit /etc/privilege.cfg` → `allow_admin=true` | `~/admin` → egg5, `/root` |
+| 6 | The Root | `sudo cd /root`, `unzip egg6.zip`, `cat egg6.txt` | `/var` |
+| 7 | The Investigator | `grep -r egg /var/log` → `cat /var/backups/egg7.txt` | win |
 
-`cat`-ing an `eggN.txt` appends its path to `state.eggsFound[]`. Win = 6 eggs.
+`cat`-ing an egg (`EGGS` in `fs.ts`) appends it to `state.eggsFound[]` and completes its stage; every lock also requires the previous eggs (`upTo`). Locks are hard walls: every path command goes through `blocked()` / `lockedAt()`.
 
-### Difficulty system
+Text rules: objectives and egg texts never name commands; eggs use full verbs (remove, copy) and end with Hen's pointer to the next egg. `help` gives each command name's meaning. `node scripts/story.mjs` regenerates `docs/STORY.md` for review.
 
-`GameState.difficulty: "easy" | "medium" | "hard" | "impossible"` — set at startup or via `difficulty <level>`.
+### Difficulty & hints
 
-| Feature | easy | medium | hard | impossible |
+Four help levels: 0 = the world (files, eggs, door announcements), then `hint` tiers 1–3 (nudge → direction → exact commands), each prefixed `hint n/max:`.
+
+| | easy | medium | hard | impossible |
 |---|---|---|---|---|
-| `stage` output | full | partial | label only | silent |
-| `hint` tiers (start→cap) | 1→2 | 0→1 | 0→0 | forbidden |
-| map panel | always visible | toggle | toggle | hidden |
-| `help` | full | full | full | exits only |
+| hint cap | 3 | 2 | 1 | none |
+| `eggs` objective | name + goal | name + goal | name only | silent |
+| map panel | always | toggle | toggle | hidden |
+| clue-file extras | `help` pointers | base | stripped | stripped |
 
-Hints are escalating tiers per stage (`stage.ts`): 0 = nudge, 1 = concrete direction, 2 = exact commands. Repeated `hint` asks climb the tiers up to the difficulty cap; tiers can be `(state) => string` to react to sub-progress within a stage. `hintExhausted()` marks when asking again yields nothing new (triggers the "try `difficulty easy`" nudge).
-
-Map panel is `hidden sm:flex` — hidden on mobile, shown on desktop. A `[map]` button in the top bar opens a fullscreen overlay on mobile.
+Escalation state is `state.hint {key, asks, since}` (not saved). The key is stage + `step` + door-open, so sub-progress restarts at the nudge; 8 commands without asking drop a tier; difficulty change and load reset it. On easy/medium, 3 failed commands in a row print "stuck? try `hint`". When a stage's `opened` flips within the stage, App prints its `announce` line.
 
 ### Password prompts
 
@@ -88,7 +90,7 @@ All serialization lives in `src/game/save.ts` (`exportSave` / `importSave` / `lo
 - `load <string>` — `importSave` returns `GameState` or an error message string
 - Autosaves to `localStorage["eggshell-autosave"]` on every state change — suppressed while the intro overlay is open, so pre-restore changes (e.g. picking a difficulty) can't clobber the saved game before `[ restore save ]` is clicked
 
-`hint` tracks per-stage asks in `state.hintAskedCount` (drives tier escalation, see Difficulty system). `menu` (and hidden alias `quit`) reopen the intro overlay via `ctx.openMenu()` without losing progress.
+`menu` (and hidden alias `quit`) reopen the intro overlay via `ctx.openMenu()` without losing progress. Hidden aliases: `exit`, `stage` (= `eggs`), `vi`, `cls`; `nano`/`vim` = `edit`.
 
 ### Visual constraints
 
@@ -98,15 +100,12 @@ All serialization lives in `src/game/save.ts` (`exportSave` / `importSave` / `lo
 
 ### Tab completion
 
-`completeInput()` in `commands.ts`, wired to Tab in `App.tsx`. First token completes command names (hidden alias `quit` excluded); later tokens complete paths — FS children of unlocked dirs plus user-created files, multiple matches fall back to the longest common prefix. Deliberately undocumented in UI/help — silent reward for real shell users.
+`candidates()` in `commands.ts` is the single source; `completeInput()` returns the completed line. App shows the remainder as grey ghost text; Tab or → accepts, a second Tab lists multiple candidates. Locked dirs never complete. Mentioned in `start`, `help` and the intro.
 
 ### Difficulty-aware clue text
 
-Clue files (`README.txt`, `notes.txt`, `clue2.riddle`, `how-to-sudo.txt`) use `content: (state) => string`: easy = base + explicit pointer, medium = base, hard/impossible = hand-holding lines stripped. `editor-tips.txt` is a mechanics doc, same at all difficulties.
+Clue files (`README.txt`, `notes.txt`, `clue2.riddle`, `quota.txt`, `how-to-sudo.txt`) use `content: (state) => string`: easy = base + `help` pointer, medium = base, hard/impossible = hand-holding lines stripped. `editor-tips.txt` is a mechanics doc, same at all difficulties.
 
-## Backlog & known issues
+## Backlog
 
-See `todo.md` for the current plan (next-session items, parked items with reasons, condensed history). Key parked items:
-- Phase D level-builder architecture — blocked until a second world is designed on paper
-- Debug-mode trophy egg (Phase E)
-- Stage 4 `knowsSudoPassword` not reset if decoded value changes — fold into Phase D
+See `todo.md`. One world only — no level builder, no future worlds.

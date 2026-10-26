@@ -152,12 +152,12 @@ Sticky notes on Hen's monitor:
 }
 ```
 
-### hints for egg 1 (tiers in order, per sub-step)
+### hints for egg 1 (hint 1 = nudge, 2 = direction, 3 = exact)
 
 ```
-- Read README.txt in your home folder. What keeps the first door shut?
-- You need a network. `help` lists a command for Wi-Fi, and Hen kept the password in a file in /etc.
-- `cat /etc/wifi.json`, then `wifi connect EggHunt-5G` and type the password from that file.
+1. Read README.txt in your home folder. What keeps the first door shut?
+2. You need a network. `help` lists a command for Wi-Fi, and Hen kept the password in a file in /etc.
+3. `cat /etc/wifi.json`, then `wifi connect EggHunt-5G` and type the password from that file.
 ```
 
 ### /home/player/documents/egg1.txt
@@ -207,14 +207,18 @@ A riddle from Hen:
   to prove you were there. My secrets will open to you.
 ```
 
-### hints for egg 2 (tiers in order, per sub-step)
+### hints for egg 2 (hint 1 = nudge, 2 = direction, 3 = exact)
 
 ```
-- The riddle in ~/documents describes something to build. Read it word by word.
-- Make a folder named magic in your home folder. `help` shows the command for making directories.
-- `mkdir ~/magic`, then `touch ~/magic/token.txt`
-- The magic folder exists. Now leave a token inside it — an empty file will do. `help` shows how.
-- `touch ~/magic/token.txt`
+[sub-step 1: dir]
+1. The riddle in ~/documents describes something to build. Read it word by word.
+2. Make a folder named magic in your home folder. `help` shows the command for making directories.
+3. `mkdir ~/magic`, then `touch ~/magic/token.txt`
+
+[sub-step 2: token]
+1. The riddle in ~/documents describes something to build. Read it word by word.
+2. The magic folder exists. Now leave a token inside it — an empty file will do. `help` shows how.
+3. `touch ~/magic/token.txt`
 ```
 
 ### /home/player/secrets/egg2.txt
@@ -256,14 +260,18 @@ Door announcement: ✨ Something new appeared in ~/secrets.
 - report.txt is a document — it belongs with the other documents
 ```
 
-### hints for egg 3 (tiers in order, per sub-step)
+### hints for egg 3 (hint 1 = nudge, 2 = direction, 3 = exact)
 
 ```
-- Read quota.txt in ~/secrets. Two jobs: some files go, one file moves.
-- Remove the files ending in .tmp. One command takes several names — or the wildcard *.tmp.
-- `cd ~/secrets`, `rm *.tmp`, then `mv report.txt ~/documents/`
-- The junk is gone. Now move report.txt into ~/documents. `help` lists a command for moving.
-- `mv ~/secrets/report.txt ~/documents/`
+[sub-step 1: junk]
+1. Read quota.txt in ~/secrets. Two jobs: some files go, one file moves.
+2. Remove the files ending in .tmp. One command takes several names — or the wildcard *.tmp.
+3. `cd ~/secrets`, `rm *.tmp`, then `mv report.txt ~/documents/`
+
+[sub-step 2: report]
+1. Read quota.txt in ~/secrets. Two jobs: some files go, one file moves.
+2. The junk is gone. Now move report.txt into ~/documents. `help` lists a command for moving.
+3. `mv ~/secrets/report.txt ~/documents/`
 ```
 
 ### /home/player/secrets/egg3.txt
@@ -312,12 +320,12 @@ House rule: back up before you change. A copy named <file>.bak
 is the custom — if the edit goes wrong, the original is safe.
 ```
 
-### hints for egg 4 (tiers in order, per sub-step)
+### hints for egg 4 (hint 1 = nudge, 2 = direction, 3 = exact)
 
 ```
-- secrets.cfg controls the vault door. Files can be changed, not just read — and this one has a house rule.
-- First make a backup copy of secrets.cfg (`help` shows how to copy), then open it in the editor.
-- `cp ~/secrets/secrets.cfg ~/secrets/secrets.cfg.bak`, then `edit ~/secrets/secrets.cfg`, change true to false, save with Ctrl+S (Cmd+S on Mac).
+1. secrets.cfg controls the vault door. Files can be changed, not just read — and this one has a house rule.
+2. First make a backup copy of secrets.cfg (`help` shows how to copy), then open it in the editor.
+3. `cp ~/secrets/secrets.cfg ~/secrets/secrets.cfg.bak`, then `edit ~/secrets/secrets.cfg`, change true to false, save with Ctrl+S (Cmd+S on Mac).
 ```
 
 ### /home/player/vault/egg4.txt
@@ -398,15 +406,18 @@ allow_admin=false
 default_user=player    # default is 'player'; also accepts 'admin'
 ```
 
-### hints for egg 5 (tiers in order, per sub-step)
+### hints for egg 5 (hint 1 = nudge, 2 = direction, 3 = exact)
 
 ```
-- Hen hid the admin password in the vault. Read every file there.
-- The passphrase in sudo_clue.json is base64 — an encoding anyone can reverse. `help` lists a decoder.
-- `base64 -d c2VjcmV0LWVnZw==` — the output is the admin password.
-- You know the password. Who counts as an admin is written in a file in /etc.
-- /etc/privilege.cfg decides who is admin, and only root may change it. how-to-sudo.txt explains how to act as root.
-- `sudo edit /etc/privilege.cfg`, enter the decoded password, set allow_admin=true, save.
+[sub-step 1: decode]
+1. Hen hid the admin password in the vault. Read every file there.
+2. The passphrase in sudo_clue.json is base64 — an encoding anyone can reverse. `help` lists a decoder.
+3. `base64 -d c2VjcmV0LWVnZw==` — the output is the admin password.
+
+[sub-step 2: sudo]
+1. You know the password. Who counts as an admin is written in a file in /etc.
+2. /etc/privilege.cfg decides who is admin, and only root may change it. how-to-sudo.txt explains how to act as root.
+3. `sudo edit /etc/privilege.cfg`, enter the decoded password, set allow_admin=true, save.
 ```
 
 ### /home/player/admin/egg5.txt
@@ -427,14 +438,18 @@ Next: /root, my own home, is open to admins now. The first time, ask as root.  �
 
 Objective (eggs): Get into /root, the administrator's home.
 
-### hints for egg 6 (tiers in order, per sub-step)
+### hints for egg 6 (hint 1 = nudge, 2 = direction, 3 = exact)
 
 ```
-- The next egg is in /root, the administrator's own home folder.
-- A plain `cd /root` is refused the first time. Run the command itself as root.
-- `sudo cd /root`, then `unzip egg6.zip`
-- The egg is packed in an archive. `help` lists a command to unpack it.
-- `unzip egg6.zip`, then `cat egg6.txt`
+[sub-step 1: enter]
+1. The next egg is in /root, the administrator's own home folder.
+2. A plain `cd /root` is refused the first time. Run the command itself as root.
+3. `sudo cd /root`, then `unzip egg6.zip`
+
+[sub-step 2: unzip]
+1. The next egg is in /root, the administrator's own home folder.
+2. The egg is packed in an archive. `help` lists a command to unpack it.
+3. `unzip egg6.zip`, then `cat egg6.txt`
 ```
 
 ### /root/egg6.txt
@@ -456,12 +471,12 @@ Nobody reads logs line by line.  — Hen
 
 Objective (eggs): Find out where the last egg went.
 
-### hints for egg 7 (tiers in order, per sub-step)
+### hints for egg 7 (hint 1 = nudge, 2 = direction, 3 = exact)
 
 ```
-- Something wrote to the system logs in /var/log. Which log mentions an egg?
-- Don't read logs line by line — search them. `grep <word> <file>` prints matching lines; -r searches a whole folder.
-- `grep -r egg /var/log`, then `cat` the path it shows.
+1. Something wrote to the system logs in /var/log. Which log mentions an egg?
+2. Don't read logs line by line — search them. `grep <word> <file>` prints matching lines; -r searches a whole folder.
+3. `grep -r egg /var/log`, then `cat` the path it shows.
 ```
 
 ### /var/log/syslog

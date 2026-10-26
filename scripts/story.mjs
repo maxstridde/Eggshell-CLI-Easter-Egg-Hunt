@@ -39,13 +39,14 @@ const file = (path, state) => {
   }
   for (const [t, ds] of seen) block(`${path}${seen.size > 1 ? `  (${ds.join(", ")})` : ""}`, t);
 };
+// One block per sub-step (state), each with its three tiers in order.
 const hints = (i, states) => {
-  const texts = [];
-  for (const s of states) for (const h of STAGES[i].hints) {
-    const t = typeof h === "function" ? h(s) : h;
-    if (!texts.includes(t)) texts.push(t);
-  }
-  block(`hints for egg ${i + 1} (tiers in order, per sub-step)`, texts.map((t) => "- " + t).join("\n"));
+  const body = states.map((st, n) => {
+    const step = STAGES[i].step?.(st);
+    const head = states.length > 1 ? `[sub-step ${n + 1}${step ? `: ${step}` : ""}]\n` : "";
+    return head + STAGES[i].hints.map((h, t) => `${t + 1}. ${typeof h === "function" ? h(st) : h}`).join("\n");
+  });
+  block(`hints for egg ${i + 1} (hint 1 = nudge, 2 = direction, 3 = exact)`, body.join("\n\n"));
 };
 const stage = (i, state) => {
   md.push(`## Egg ${i + 1} — ${STAGES[i].name}`, "", `Objective (eggs): ${STAGES[i].goal}`, "");

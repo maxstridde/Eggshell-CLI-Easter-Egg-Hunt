@@ -1,6 +1,6 @@
-import { Difficulty, FsNode, GameState } from "../types";
-import { fileContent, findNode, resolvePath } from "./fs";
-import { STAGES, activeStageIndex, hintExhausted, stageHint, stageOf } from "./stage";
+import { Difficulty, FsNode, GameState, initialState } from "../types";
+import { EGGS, TIDY_EGG, fileContent, findNode, hasBackup, lockedAt, resolvePath } from "./fs";
+import { STAGES, activeStageIndex, hintExhausted, recordHint, stageHint, stageOf } from "./stage";
 import { exportSave, importSave } from "./save";
 
 export interface CmdContext {
@@ -19,49 +19,42 @@ export interface CmdContext {
 
 export type CommandHandler = (args: string[], ctx: CmdContext) => void;
 
-// Returns the player's current progress level (0–6) used to filter help entries.
-function progressLevel(s: GameState): number {
-  if (s.finalEggFound) return 6;
-  if (s.adminUnlocked) return 5;
-  if (s.knowsSudoPassword) return 4;
-  if (s.secretsUnlocked) return 3;
-  if (s.createdMagicDir && s.createdTokenFile) return 2;
-  if (s.wifiConnected) return 1;
-  return 0;
-}
-
+// minStage: 0-based STAGES index from which the entry shows in `help`.
 interface HelpEntry {
   cmd: string;
   desc: string;
-  minLevel: number;
+  minStage: number;
 }
 
 const HELP_ENTRIES: HelpEntry[] = [
-  { cmd: "help [all]",               desc: "show this message  (help all: show every command)", minLevel: 0 },
-  { cmd: "clear / cls",              desc: "clear the screen", minLevel: 0 },
-  { cmd: "pwd",                      desc: "print current directory", minLevel: 0 },
-  { cmd: "ls [path]",                desc: "list directory contents", minLevel: 0 },
-  { cmd: "cat <file>",               desc: "print file contents", minLevel: 0 },
-  { cmd: "wifi list",                desc: "show available Wi-Fi networks", minLevel: 0 },
-  { cmd: "wifi connect <SSID>",      desc: "connect to a Wi-Fi network", minLevel: 0 },
-  { cmd: "eggs",                     desc: "show collected eggs", minLevel: 0 },
-  { cmd: "stage",                    desc: "show current stage objective", minLevel: 0 },
-  { cmd: "hint [N]",                 desc: "get a hint for stage N (or current stage)", minLevel: 0 },
-  { cmd: "difficulty [level]",       desc: "show or set difficulty (easy/medium/hard/impossible)", minLevel: 0 },
-  { cmd: "save",                     desc: "export game progress to a save string", minLevel: 0 },
-  { cmd: "load <string>",            desc: "restore game progress from a save string", minLevel: 0 },
-  { cmd: "asciizoo <animal>",        desc: "fetch ASCII art  (asciizoo list for all animals)", minLevel: 0 },
-  { cmd: "cd <path>",                desc: "change directory  (cd with no arg goes home, .. goes up)", minLevel: 1 },
-  { cmd: "mkdir <name>",             desc: "create a new directory (inside /home/player)", minLevel: 2 },
-  { cmd: "touch <name>",             desc: "create an empty file", minLevel: 2 },
-  { cmd: "rm <name>",                desc: "remove a file or empty directory (inside /home/player)", minLevel: 2 },
-  { cmd: "edit <file>",              desc: "open the built-in text editor", minLevel: 3 },
-  { cmd: "base64 -d <string|file>",  desc: "decode a base64 string or file", minLevel: 4 },
-  { cmd: "sudo <command>",           desc: "run a command as administrator (requires password)", minLevel: 4 },
-  { cmd: "unzip <file>",             desc: "extract a zip archive in the current directory", minLevel: 5 },
-  { cmd: "grep [-r] <text> <target>", desc: "search file contents for matching lines (-r: whole directory)", minLevel: 6 },
-  { cmd: "map",                      desc: "toggle the map panel (medium/hard only)", minLevel: 5 },
-  { cmd: "menu",                     desc: "pause and return to the main menu", minLevel: 0 },
+  { cmd: "start",                    desc: "how to begin", minStage: 0 },
+  { cmd: "help [all]",               desc: "show this message  (help all: show every command)", minStage: 0 },
+  { cmd: "clear / cls",              desc: "clear the screen", minStage: 0 },
+  { cmd: "pwd",                      desc: "print current directory", minStage: 0 },
+  { cmd: "ls [path]",                desc: "list directory contents", minStage: 0 },
+  { cmd: "cd <path>",                desc: "change directory  (cd with no arg goes home, .. goes up)", minStage: 0 },
+  { cmd: "cat <file>",               desc: "print file contents", minStage: 0 },
+  { cmd: "wifi list",                desc: "show available Wi-Fi networks", minStage: 0 },
+  { cmd: "wifi connect <SSID>",      desc: "connect to a Wi-Fi network", minStage: 0 },
+  { cmd: "mkdir <name>",             desc: "create a new directory (inside /home/player)", minStage: 1 },
+  { cmd: "touch <name>",             desc: "create an empty file", minStage: 1 },
+  { cmd: "rm <file...>",             desc: "remove files or empty directories  (rm *.tmp removes every match)", minStage: 2 },
+  { cmd: "mv <file> <dest>",         desc: "move or rename a file", minStage: 2 },
+  { cmd: "cp <file> <dest>",         desc: "copy a file", minStage: 3 },
+  { cmd: "edit <file>",              desc: "open the built-in text editor", minStage: 3 },
+  { cmd: "base64 -d <string|file>",  desc: "decode a base64 string or file", minStage: 4 },
+  { cmd: "sudo <command>",           desc: "run a command as administrator (requires password)", minStage: 4 },
+  { cmd: "unzip <file>",             desc: "extract a zip archive in the current directory", minStage: 6 },
+  { cmd: "grep [-r] <text> <target>", desc: "search file contents for matching lines (-r: whole directory)", minStage: 7 },
+  { cmd: "eggs",                     desc: "show collected eggs", minStage: 0 },
+  { cmd: "stage",                    desc: "show current stage objective", minStage: 0 },
+  { cmd: "hint [N]",                 desc: "get a hint for stage N (or current stage)", minStage: 0 },
+  { cmd: "difficulty [level]",       desc: "show or set difficulty (easy/medium/hard/impossible)", minStage: 0 },
+  { cmd: "map",                      desc: "toggle the map panel (medium/hard)", minStage: 0 },
+  { cmd: "save",                     desc: "export game progress to a save string", minStage: 0 },
+  { cmd: "load <string>",            desc: "restore game progress from a save string", minStage: 0 },
+  { cmd: "menu",                     desc: "pause and return to the main menu", minStage: 0 },
+  { cmd: "asciizoo <animal>",        desc: "fetch ASCII art  (asciizoo list for all animals)", minStage: 0 },
 ];
 
 const IMPOSSIBLE_HELP_TEXT = `Commands available on impossible difficulty:
@@ -128,6 +121,76 @@ const ASCII_ANIMALS: Record<string, string> = {
 
 const DIFFICULTY_LEVELS: Difficulty[] = ["easy", "medium", "hard", "impossible"];
 
+// Shared access check for every command that touches a path: locked
+// directories (including everything below them) and the first-entry sudo
+// rule for /root. Prints the error and returns true when access is denied.
+function blocked(ctx: CmdContext, cmd: string, path: string, shown: string): boolean {
+  const lock = lockedAt(ctx.root, path, ctx.state);
+  if (lock) {
+    ctx.print(`${cmd}: ${shown}: ${lock} is locked`, "text-red-400");
+    return true;
+  }
+  if ((path === "/root" || path.startsWith("/root/")) && !ctx.sudoActive && !ctx.state.rootEntered) {
+    ctx.print(`${cmd}: ${shown}: Permission denied`, "text-red-400");
+    return true;
+  }
+  return false;
+}
+
+const parentOf = (path: string) => path.split("/").slice(0, -1).join("/") || "/";
+const baseName = (path: string) => path.split("/").pop()!;
+
+function isDir(ctx: CmdContext, path: string): boolean {
+  const node = findNode(ctx.root, path);
+  return node?.kind === "dir" || ctx.state.userCreated.some((u) => u.type === "dir" && u.path === path);
+}
+
+// Content of any readable file (edits override system files), or null.
+function readFile(ctx: CmdContext, path: string): string | null {
+  const node = findNode(ctx.root, path);
+  if (node?.kind === "file") return ctx.state.edits[path] ?? fileContent(node, ctx.state);
+  return ctx.state.userCreated.find((u) => u.type === "file" && u.path === path)?.content ?? null;
+}
+
+// Stage flags that depend on what the player created (mkdir/touch/cp/mv).
+function markCreated(s: GameState, path: string, type: "dir" | "file"): GameState {
+  if (type === "dir" && path === "/home/player/magic") return { ...s, createdMagicDir: true };
+  if (type === "file" && /^\/home\/player\/magic\/token(\.[^/]*)?$/.test(path)) return { ...s, createdTokenFile: true };
+  return s;
+}
+
+// TIDY stage: once ~/secrets has no *.tmp and the report sits in ~/documents,
+// egg #3 appears. Pure, so it can run inside setState.
+function withTidy(s: GameState): GameState {
+  const u = s.userCreated;
+  const done =
+    !u.some((f) => /^\/home\/player\/secrets\/[^/]+\.tmp$/.test(f.path)) &&
+    u.some((f) => f.path === "/home/player/documents/report.txt") &&
+    !u.some((f) => f.path === EGGS[2]);
+  return done ? { ...s, userCreated: [...u, { type: "file", path: EGGS[2], content: TIDY_EGG }] } : s;
+}
+
+// Destination for cp/mv: into `dst` if it is a directory, else `dst` itself.
+// Prints the error and returns null when the destination is not allowed.
+function destination(ctx: CmdContext, cmd: string, src: string, dstArg: string): string | null {
+  let dst = resolvePath(ctx.cwd, dstArg);
+  if (isDir(ctx, dst)) dst = `${dst === "/" ? "" : dst}/${baseName(src)}`;
+  if (blocked(ctx, cmd, dst, dstArg)) return null;
+  if (!dst.startsWith("/home/player/")) {
+    ctx.print(`${cmd}: ${dstArg}: Permission denied`, "text-red-400");
+    return null;
+  }
+  if (!isDir(ctx, parentOf(dst))) {
+    ctx.print(`${cmd}: ${dstArg}: No such file or directory`, "text-red-400");
+    return null;
+  }
+  if (findNode(ctx.root, dst) || dst === src) {
+    ctx.print(`${cmd}: ${dstArg}: Permission denied (system file)`, "text-red-400");
+    return null;
+  }
+  return dst;
+}
+
 function addVisited(ctx: CmdContext, path: string) {
   ctx.setState((s) => {
     if (s.visited.includes(path)) return s;
@@ -142,8 +205,9 @@ export const commands: Record<string, CommandHandler> = {
       ctx.print(IMPOSSIBLE_HELP_TEXT, "text-emerald-300");
       return;
     }
-    const level = showAll ? 99 : progressLevel(ctx.state);
-    const visible = HELP_ENTRIES.filter((e) => e.minLevel <= level);
+    const idx = activeStageIndex(ctx.state);
+    const level = showAll || idx < 0 ? 99 : idx;
+    const visible = HELP_ENTRIES.filter((e) => e.minStage <= level);
     ctx.print("Available commands:", "text-emerald-300");
     for (const e of visible) {
       ctx.print(`  ${e.cmd.padEnd(32)} ${e.desc}`);
@@ -210,10 +274,7 @@ export const commands: Record<string, CommandHandler> = {
       // Exhaustion is checked against the pre-increment count: only nudge once
       // the player has already seen this difficulty's top hint tier before.
       const capped = hintExhausted(ctx.state, idx);
-      ctx.setState((s) => ({
-        ...s,
-        hintAskedCount: { ...s.hintAskedCount, [idx]: (s.hintAskedCount[idx] ?? 0) + 1 },
-      }));
+      ctx.setState((s) => recordHint(s, idx));
       if (capped && difficulty !== "easy") {
         ctx.print(
           "That's as specific as hints get on this difficulty. If you're stuck, try `difficulty easy` — you can switch back any time.",
@@ -235,7 +296,7 @@ export const commands: Record<string, CommandHandler> = {
       ctx.print(`  valid: ${DIFFICULTY_LEVELS.join(", ")}`);
       return;
     }
-    ctx.setState((s) => ({ ...s, difficulty: level as Difficulty }));
+    ctx.setState((s) => ({ ...s, difficulty: level as Difficulty, hint: initialState.hint }));
     ctx.print(`Difficulty set to: ${level}`, "text-emerald-300");
     if (level === "impossible") {
       ctx.print("Good luck. The shell is now silent.", "text-stone-400");
@@ -300,7 +361,7 @@ export const commands: Record<string, CommandHandler> = {
       ctx.print("No eggs yet. Keep exploring!", "text-yellow-300");
       return;
     }
-    ctx.print(`Eggs found: ${found.length} / 6`, "text-yellow-300");
+    ctx.print(`Eggs found: ${found.length} / ${EGGS.length}`, "text-yellow-300");
     found.forEach((p, i) => ctx.print(`  ${i + 1}. ${p}`));
   },
 
@@ -313,6 +374,7 @@ export const commands: Record<string, CommandHandler> = {
       ctx.print(`ls: cannot access '${args[0] ?? target}': No such file or directory`, "text-red-400");
       return;
     }
+    if (blocked(ctx, "ls", target, args[0] ?? target)) return;
     if (node && node.kind === "file") {
       ctx.print(node.name);
       return;
@@ -368,16 +430,8 @@ export const commands: Record<string, CommandHandler> = {
       ctx.print(`cd: not a directory: ${args[0]}`, "text-red-400");
       return;
     }
-    if (node && node.kind === "dir" && node.locked && node.locked(ctx.state)) {
-      ctx.print(`cd: '${args[0] ?? target}' is locked`, "text-red-400");
-      return;
-    }
-    // /root requires sudo for the first entry even after adminUnlocked
-    if (target === "/root" && !ctx.sudoActive && !ctx.state.rootEntered) {
-      ctx.print("cd: /root: permission denied", "text-red-400");
-      return;
-    }
-    if (target === "/root" && ctx.sudoActive && !ctx.state.rootEntered) {
+    if (blocked(ctx, "cd", target, args[0] ?? target)) return;
+    if (target === "/root" && !ctx.state.rootEntered) {
       ctx.setState((s) => ({ ...s, rootEntered: true }));
     }
     ctx.setCwd(target);
@@ -390,6 +444,7 @@ export const commands: Record<string, CommandHandler> = {
       return;
     }
     const target = resolvePath(ctx.cwd, args[0]);
+    if (blocked(ctx, "cat", target, args[0])) return;
 
     // Binary file guard
     if (target.endsWith(".zip")) {
@@ -416,21 +471,8 @@ export const commands: Record<string, CommandHandler> = {
     const content = override ?? (node?.kind === "file" ? fileContent(node, ctx.state) : userFile?.content ?? "");
     ctx.print(content.trimEnd());
 
-    const eggFiles = [
-      "/home/player/documents/egg1.txt",
-      "/home/player/secrets/egg2.txt",
-      "/home/player/vault/egg3.txt",
-      "/home/player/admin/egg4.txt",
-      "/root/final_egg.txt",
-      "/var/backups/egg6.txt",
-    ];
-    if (eggFiles.includes(target)) {
-      ctx.setState((s) => {
-        if (s.eggsFound.includes(target)) return s;
-        const next = { ...s, eggsFound: [...s.eggsFound, target] };
-        if (target === "/root/final_egg.txt") next.finalEggFound = true;
-        return next;
-      });
+    if (EGGS.includes(target)) {
+      ctx.setState((s) => (s.eggsFound.includes(target) ? s : { ...s, eggsFound: [...s.eggsFound, target] }));
     }
   },
 
@@ -444,6 +486,7 @@ export const commands: Record<string, CommandHandler> = {
       ctx.print("mkdir: permission denied", "text-red-400");
       return;
     }
+    if (blocked(ctx, "mkdir", target, args[0])) return;
     const parentPath = target.split("/").slice(0, -1).join("/") || "/";
     const parentInFs = findNode(ctx.root, parentPath);
     const parentIsUserDir = ctx.state.userCreated.some((u) => u.type === "dir" && u.path === parentPath);
@@ -455,14 +498,7 @@ export const commands: Record<string, CommandHandler> = {
       ctx.print(`mkdir: cannot create directory '${args[0]}': File exists`, "text-red-400");
       return;
     }
-    ctx.setState((s) => {
-      const next: GameState = {
-        ...s,
-        userCreated: [...s.userCreated, { type: "dir", path: target }],
-      };
-      if (target === "/home/player/magic") next.createdMagicDir = true;
-      return next;
-    });
+    ctx.setState((s) => markCreated({ ...s, userCreated: [...s.userCreated, { type: "dir", path: target }] }, target, "dir"));
     ctx.print(`created directory: ${target}`, "text-emerald-300");
   },
 
@@ -476,6 +512,7 @@ export const commands: Record<string, CommandHandler> = {
       ctx.print("touch: permission denied", "text-red-400");
       return;
     }
+    if (blocked(ctx, "touch", target, args[0])) return;
     const parentPath = target.split("/").slice(0, -1).join("/") || "/";
     const parentInFs = findNode(ctx.root, parentPath);
     const parentIsUserDir = ctx.state.userCreated.some((u) => u.type === "dir" && u.path === parentPath);
@@ -487,14 +524,9 @@ export const commands: Record<string, CommandHandler> = {
       // already exists — no-op like real touch
       return;
     }
-    ctx.setState((s) => {
-      const next: GameState = {
-        ...s,
-        userCreated: [...s.userCreated, { type: "file", path: target, content: "" }],
-      };
-      if (/^\/home\/player\/magic\/token(\.[^/]*)?$/.test(target)) next.createdTokenFile = true;
-      return next;
-    });
+    ctx.setState((s) =>
+      markCreated({ ...s, userCreated: [...s.userCreated, { type: "file", path: target, content: "" }] }, target, "file")
+    );
     ctx.print(`created file: ${target}`, "text-emerald-300");
   },
 
@@ -509,8 +541,13 @@ export const commands: Record<string, CommandHandler> = {
       (u) => u.type === "file" && u.path === target
     );
 
+    if (blocked(ctx, "edit", target, args[0])) return;
     if (target === "/etc/privilege.cfg" && !ctx.sudoActive) {
       ctx.print("edit: /etc/privilege.cfg: permission denied", "text-red-400");
+      return;
+    }
+    if (target === "/home/player/secrets/secrets.cfg" && !hasBackup(ctx.state)) {
+      ctx.print("edit: secrets.cfg: house rule — make a backup copy before editing", "text-red-400");
       return;
     }
 
@@ -626,6 +663,7 @@ export const commands: Record<string, CommandHandler> = {
     let encoded: string;
     let isFileDecode = false;
     if (fileNode?.kind === "file" || userFile) {
+      if (blocked(ctx, "base64", filePath, raw.trim())) return;
       encoded =
         ctx.state.edits[filePath] ??
         (fileNode?.kind === "file" ? fileContent(fileNode, ctx.state) : userFile?.content ?? "");
@@ -664,34 +702,117 @@ export const commands: Record<string, CommandHandler> = {
       ctx.print("rm: missing operand", "text-red-400");
       return;
     }
-    const target = resolvePath(ctx.cwd, args[0]);
-    if (!target.startsWith("/home/player")) {
-      ctx.print("rm: permission denied", "text-red-400");
+    // Expand a simple `*` glob against the player's files (no other shell globbing).
+    const targets: { path: string; shown: string }[] = [];
+    for (const arg of args) {
+      const path = resolvePath(ctx.cwd, arg);
+      if (!arg.includes("*")) {
+        targets.push({ path, shown: arg });
+        continue;
+      }
+      const dir = parentOf(path);
+      const re = new RegExp("^" + baseName(path).replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*") + "$");
+      const hits = ctx.state.userCreated.filter((u) => parentOf(u.path) === dir && re.test(baseName(u.path)));
+      if (hits.length === 0) ctx.print(`rm: cannot remove '${arg}': No such file or directory`, "text-red-400");
+      for (const h of hits) targets.push({ path: h.path, shown: baseName(h.path) });
+    }
+
+    const removed: string[] = [];
+    for (const { path, shown } of targets) {
+      if (blocked(ctx, "rm", path, shown)) continue;
+      if (!path.startsWith("/home/player")) {
+        ctx.print(`rm: cannot remove '${shown}': Permission denied`, "text-red-400");
+        continue;
+      }
+      if (EGGS.includes(path)) {
+        ctx.print(`rm: cannot remove '${shown}': eggs are fragile — leave them be`, "text-red-400");
+        continue;
+      }
+      if (baseName(path) === "report.txt") {
+        ctx.print(`rm: '${shown}' is still needed — file it in ~/documents instead`, "text-red-400");
+        continue;
+      }
+      const entry = ctx.state.userCreated.find((u) => u.path === path);
+      if (!entry) {
+        const msg = findNode(ctx.root, path) ? "Permission denied (system file)" : "No such file or directory";
+        ctx.print(`rm: cannot remove '${shown}': ${msg}`, "text-red-400");
+        continue;
+      }
+      if (entry.type === "dir" && ctx.state.userCreated.some((u) => u.path.startsWith(path + "/") && !removed.includes(u.path))) {
+        ctx.print(`rm: cannot remove '${shown}': Directory not empty`, "text-red-400");
+        continue;
+      }
+      removed.push(path);
+      ctx.print(`removed '${shown}'`, "text-emerald-300");
+    }
+    if (removed.length === 0) return;
+    const update = (s: GameState) => withTidy({ ...s, userCreated: s.userCreated.filter((u) => !removed.includes(u.path)) });
+    if (update(ctx.state).userCreated.some((u) => u.path === EGGS[2]) && !ctx.state.userCreated.some((u) => u.path === EGGS[2])) {
+      ctx.print("Something new appeared in ~/secrets…", "text-yellow-300");
+    }
+    ctx.setState(update);
+  },
+
+  mv: (args, ctx) => {
+    if (args.length < 2) {
+      ctx.print("mv: usage — `mv <file> <destination>`", "text-red-400");
       return;
     }
-    const entry = ctx.state.userCreated.find((u) => u.path === target);
+    const src = resolvePath(ctx.cwd, args[0]);
+    if (blocked(ctx, "mv", src, args[0])) return;
+    const entry = ctx.state.userCreated.find((u) => u.path === src);
     if (!entry) {
-      if (findNode(ctx.root, target)) {
-        ctx.print(`rm: cannot remove '${args[0]}': Permission denied (system file)`, "text-red-400");
-      } else {
-        ctx.print(`rm: cannot remove '${args[0]}': No such file or directory`, "text-red-400");
-      }
+      const msg = findNode(ctx.root, src) ? "Permission denied (system file)" : "No such file or directory";
+      ctx.print(`mv: cannot move '${args[0]}': ${msg}`, "text-red-400");
       return;
     }
     if (entry.type === "dir") {
-      const hasChildren = ctx.state.userCreated.some((u) =>
-        u.path.startsWith(target + "/")
-      );
-      if (hasChildren) {
-        ctx.print(`rm: cannot remove '${args[0]}': Directory not empty`, "text-red-400");
-        return;
-      }
+      ctx.print(`mv: '${args[0]}': moving directories is not supported here`, "text-red-400");
+      return;
     }
-    ctx.setState((s) => ({
-      ...s,
-      userCreated: s.userCreated.filter((u) => u.path !== target),
-    }));
-    ctx.print(`removed '${target}'`, "text-emerald-300");
+    if (EGGS.includes(src)) {
+      ctx.print(`mv: cannot move '${args[0]}': eggs stay where they hatched`, "text-red-400");
+      return;
+    }
+    const dst = destination(ctx, "mv", src, args[1]);
+    if (!dst) return;
+    const update = (s: GameState) =>
+      withTidy(markCreated({
+        ...s,
+        userCreated: [...s.userCreated.filter((u) => u.path !== src && u.path !== dst), { ...entry, path: dst }],
+      }, dst, "file"));
+    ctx.print(`moved '${args[0]}' → ${dst}`, "text-emerald-300");
+    if (update(ctx.state).userCreated.some((u) => u.path === EGGS[2]) && !ctx.state.userCreated.some((u) => u.path === EGGS[2])) {
+      ctx.print("Something new appeared in ~/secrets…", "text-yellow-300");
+    }
+    ctx.setState(update);
+  },
+
+  cp: (args, ctx) => {
+    if (args.length < 2) {
+      ctx.print("cp: usage — `cp <file> <destination>`", "text-red-400");
+      return;
+    }
+    const src = resolvePath(ctx.cwd, args[0]);
+    if (blocked(ctx, "cp", src, args[0])) return;
+    if (isDir(ctx, src)) {
+      ctx.print(`cp: '${args[0]}': is a directory (copying directories is not supported here)`, "text-red-400");
+      return;
+    }
+    const content = readFile(ctx, src);
+    if (content === null) {
+      ctx.print(`cp: cannot stat '${args[0]}': No such file or directory`, "text-red-400");
+      return;
+    }
+    const dst = destination(ctx, "cp", src, args[1]);
+    if (!dst) return;
+    ctx.setState((s) =>
+      markCreated({
+        ...s,
+        userCreated: [...s.userCreated.filter((u) => u.path !== dst), { type: "file", path: dst, content }],
+      }, dst, "file")
+    );
+    ctx.print(`copied '${args[0]}' → ${dst}`, "text-emerald-300");
   },
 
   unzip: (args, ctx) => {
@@ -700,6 +821,7 @@ export const commands: Record<string, CommandHandler> = {
       return;
     }
     const target = resolvePath(ctx.cwd, args[0]);
+    if (blocked(ctx, "unzip", target, args[0])) return;
     const node = findNode(ctx.root, target);
     if (!node || node.kind !== "file") {
       ctx.print(`unzip: cannot open ${args[0]}: No such file or directory`, "text-red-400");
@@ -717,14 +839,14 @@ export const commands: Record<string, CommandHandler> = {
         return;
       }
       const eggContent =
-        "🏆 EGG #5 — 'THE PRIZE' 🏆\n" +
+        "🏆 EGG #6 — 'THE PRIZE' 🏆\n" +
         "You made it to /root. Congratulations.\n" +
         "\n" +
         "Skills demonstrated:\n" +
-        "  ls · cd · pwd · cat · mkdir · touch · rm\n" +
+        "  ls · cd · cat · mkdir · touch · rm · mv · cp\n" +
         "  edit · wifi · base64 -d · unzip · sudo\n" +
         "\n" +
-        "Five eggs down — seriously impressive work.\n" +
+        "Six eggs down — seriously impressive work.\n" +
         "\n" +
         "But wait. While you were breaking in here, something wrote to the\n" +
         "system logs. /var just unlocked. One egg is still out there,\n" +
@@ -750,22 +872,7 @@ export const commands: Record<string, CommandHandler> = {
     }
     const target = resolvePath(ctx.cwd, rest[1] ?? ".");
 
-    // Refuse targets inside (or at) a locked directory — same rule as cd/ls.
-    {
-      let cur = ctx.root;
-      let curPath = "";
-      for (const p of target.split("/").filter(Boolean)) {
-        if (cur.kind !== "dir") break;
-        const next = cur.children.find((c) => c.name === p);
-        if (!next) break;
-        curPath += "/" + p;
-        if (next.kind === "dir" && next.locked && next.locked(ctx.state)) {
-          ctx.print(`grep: ${curPath}: Permission denied`, "text-red-400");
-          return;
-        }
-        cur = next;
-      }
-    }
+    if (blocked(ctx, "grep", target, rest[1] ?? target)) return;
 
     const node = findNode(ctx.root, target);
     const userEntry = ctx.state.userCreated.find((u) => u.path === target);
@@ -805,7 +912,7 @@ export const commands: Record<string, CommandHandler> = {
       };
       if (node?.kind === "dir") walk(node, target);
       for (const u of ctx.state.userCreated) {
-        if (u.type === "file" && u.path.startsWith(target + "/")) addFile(u.path);
+        if (u.type === "file" && u.path.startsWith(target + "/") && !lockedAt(ctx.root, u.path, ctx.state)) addFile(u.path);
       }
     }
 
@@ -825,6 +932,10 @@ export const commands: Record<string, CommandHandler> = {
   sudo: (args, ctx) => {
     if (args.length === 0) {
       ctx.print("sudo: usage — `sudo <command> <args...>`", "text-red-400");
+      return;
+    }
+    if (!ctx.state.knowsSudoPassword) {
+      ctx.print("sudo: you don't know the admin password yet — it's hidden somewhere on this system", "text-red-400");
       return;
     }
     ctx.passwordPrompt((pwd) => {
@@ -903,7 +1014,8 @@ export function completeInput(raw: string, root: FsNode, state: GameState, cwd: 
   const node = findNode(root, dirPath);
 
   const names: string[] = [];
-  if (node?.kind === "dir" && !(node.locked && node.locked(state))) {
+  if (lockedAt(root, dirPath, state)) return null;
+  if (node?.kind === "dir") {
     for (const c of node.children) names.push(c.name + (c.kind === "dir" ? "/" : ""));
   }
   for (const u of state.userCreated) {

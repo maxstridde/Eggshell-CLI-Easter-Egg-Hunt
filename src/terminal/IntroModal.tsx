@@ -54,12 +54,12 @@ export function IntroModal({
         <div className="space-y-3 text-sm leading-6">
           <p>
             You are a new user on <span className="text-emerald-300">eggshell.local</span>.
-            The system hides <span className="text-yellow-300">6 easter eggs</span>. Your job
+            The system hides <span className="text-yellow-300">7 easter eggs</span>. Your job
             is to find them all by typing commands — no mouse, no buttons, no icons.
           </p>
           <p>
             Along the way you'll learn how real systems get unlocked: connecting Wi-Fi,
-            creating files &amp; folders, editing config files with a CLI text editor,
+            creating, moving &amp; copying files, editing config files with a CLI text editor,
             decoding a base64 clue, and escalating privileges with <code>sudo</code>.
           </p>
           <p className="text-stone-400">

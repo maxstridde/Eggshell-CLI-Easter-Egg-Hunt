@@ -32,8 +32,7 @@ export interface GameState {
   knowsSudoPassword: boolean; // decoded from base64 clue
   adminUnlocked: boolean; // via editing /etc/privilege.cfg
   rootEntered: boolean; // set after first successful sudo cd /root
-  eggsFound: string[]; // paths of discovered eggs
-  finalEggFound: boolean;
+  eggsFound: string[]; // paths of discovered eggs (see EGGS in fs.ts)
   // raw file overrides from edits
   edits: Record<string, string>;
   // user-created files / dirs (relative to /home/player)
@@ -43,7 +42,9 @@ export interface GameState {
   terminalUser: TerminalUser; // set by default_user in /etc/privilege.cfg
   visited: string[]; // directories the player has ls-ed or cd-ed into
   mapVisible: boolean; // medium/hard: whether map panel is toggled on
-  hintAskedCount: Record<number, number>; // per-stage hint request counter
+  // Hint escalation for the current situation (stage + sub-step). Not saved:
+  // resets on load, on difficulty change, and whenever `key` changes.
+  hint: { key: string; asks: number; since: number };
 }
 
 export const initialState: GameState = {
@@ -56,13 +57,18 @@ export const initialState: GameState = {
   adminUnlocked: false,
   rootEntered: false,
   eggsFound: [],
-  finalEggFound: false,
   edits: {},
-  userCreated: [],
+  // Seeded player-owned clutter for the TIDY stage (rm / mv work on userCreated).
+  userCreated: [
+    { type: "file", path: "/home/player/secrets/session-0412.tmp", content: "temporary session cache — safe to delete\n" },
+    { type: "file", path: "/home/player/secrets/upload-3f9a.tmp", content: "partial upload — safe to delete\n" },
+    { type: "file", path: "/home/player/secrets/thumbs.tmp", content: "thumbnail cache — safe to delete\n" },
+    { type: "file", path: "/home/player/secrets/report.txt", content: "Quarterly egg report\n====================\nEggs hidden: 7\nEggs found:  ask the player\n\nThis report belongs in ~/documents.\n" },
+  ],
   sudoTries: 0,
   difficulty: "easy",
   terminalUser: "player",
   visited: ["/home/player"],
   mapVisible: false,
-  hintAskedCount: {},
+  hint: { key: "", asks: 0, since: 0 },
 };

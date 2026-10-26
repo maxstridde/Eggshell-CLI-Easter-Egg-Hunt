@@ -28,6 +28,43 @@ const file = (
 const isEasy = (s: GameState) => s.difficulty === "easy";
 const isHardOrWorse = (s: GameState) => s.difficulty === "hard" || s.difficulty === "impossible";
 
+// Egg files in stage order. Reading one (cat) completes its stage.
+export const EGGS = [
+  "/home/player/documents/egg1.txt",
+  "/home/player/secrets/egg2.txt",
+  "/home/player/secrets/egg3.txt", // created by tidying ~/secrets (userCreated)
+  "/home/player/vault/egg4.txt",
+  "/home/player/admin/egg5.txt",
+  "/root/final_egg.txt", // created by unzip (userCreated)
+  "/var/backups/egg7.txt",
+];
+
+export const hasEgg = (s: GameState, n: number) => s.eggsFound.includes(EGGS[n - 1]);
+// True once eggs 1..n are all read — doors open only in stage order.
+const upTo = (s: GameState, n: number) => EGGS.slice(0, n).every((e) => s.eggsFound.includes(e));
+
+// The original secrets.cfg; any player file with exactly this content counts as a backup.
+const SECRETS_CFG =
+  "# secrets.cfg — access control for protected directories\n" +
+  "# house rule: back up this file before you change it\n" +
+  "\n" +
+  "path_to_vault_locked = true\n";
+export const hasBackup = (s: GameState) =>
+  s.userCreated.some((u) => u.type === "file" && u.content === SECRETS_CFG);
+
+export const TIDY_EGG =
+  "🥚 EGG #3 FOUND — 'The Janitor' 🥚\n" +
+  "You deleted the junk and filed the report where it belongs.\n" +
+  "\n" +
+  "Skills demonstrated:\n" +
+  "  rm  — remove files (rm *.tmp removes every match at once)\n" +
+  "  mv  — move or rename a file\n" +
+  "\n" +
+  "Real disks fill up exactly like this: caches, temp files, downloads.\n" +
+  "Careful with rm — a real shell has no trash can.\n" +
+  "\n" +
+  "Clean work. A tidy home is a fast home.\n";
+
 // --- The actual filesystem ----------------------------------------------
 
 export function buildFilesystem(): FsNode {
@@ -95,7 +132,7 @@ export function buildFilesystem(): FsNode {
             "=== WELCOME TO EGGSHELL ===\n" +
             "\n" +
             "You are sitting at a fresh terminal. Your mission:\n" +
-            "find the 6 hidden easter eggs scattered through this system.\n" +
+            "find the 7 hidden easter eggs scattered through this system.\n" +
             "\n" +
             "Useful commands:\n" +
             "  help        — show the command list\n" +
@@ -164,10 +201,7 @@ export function buildFilesystem(): FsNode {
         dir("secrets", [
           file(
             "secrets.cfg",
-            "# secrets.cfg — access control for protected directories\n" +
-              "\n" +
-              "path_to_vault_locked = true\n" +
-              "debug_mode = off\n",
+            SECRETS_CFG,
             {
               editable: true,
               onEdit: (c) => ({
@@ -194,20 +228,34 @@ export function buildFilesystem(): FsNode {
             "editor-tips.txt",
             "=== Using `edit` ===\n" +
               "`edit <filename>` opens a tiny built-in text editor.\n" +
-              "  - Change lines, then press [SAVE] to write.\n" +
-              "  - Press [CANCEL] to quit without saving.\n" +
-              "Only `.cfg`, `.txt`, `.md`, and `.riddle` files can be edited here.\n"
+              "  - Change lines, then save with Ctrl+S (Cmd+S on Mac) or [save].\n" +
+              "  - Esc or [cancel] quits without saving.\n" +
+              "\n" +
+              "Before changing a config, copy it:  cp <file> <file>.bak\n" +
+              "If the edit goes wrong, the backup has the original.\n"
+          ),
+          file("quota.txt", (s) =>
+            s.userCreated.some((u) => u.path === EGGS[2])
+              ? "secrets/ is within quota. Thank you!\n"
+              : "!! secrets/ is over quota !!\n" +
+                "- delete the temporary files (*.tmp)\n" +
+                "- file report.txt where documents belong\n" +
+                (isEasy(s)
+                  ? "\n(`rm <file>` deletes a file, `rm *.tmp` deletes every .tmp at once.\n" +
+                    " `mv <file> <dir>/` moves a file into another directory.)\n"
+                  : "")
           ),
         ], {
-          locked: (s) => !(s.createdMagicDir && s.createdTokenFile),
+          locked: (s) => !(s.createdMagicDir && s.createdTokenFile) || !upTo(s, 1),
         }),
         dir("vault", [
           file(
-            "egg3.txt",
-            "🥚 EGG #3 FOUND — 'The Editor' 🥚\n" +
-              "You opened a config file and changed a value.\n" +
+            "egg4.txt",
+            "🥚 EGG #4 FOUND — 'The Editor' 🥚\n" +
+              "You backed up a config file, then changed a value.\n" +
               "\n" +
               "Skills demonstrated:\n" +
+              "  cp    — copy a file (your safety net)\n" +
               "  edit  — modify a text file in the built-in editor\n" +
               "\n" +
               "Real systems work exactly like this:\n" +
@@ -250,12 +298,12 @@ export function buildFilesystem(): FsNode {
             );
           }),
         ], {
-          locked: (s) => !s.secretsUnlocked,
+          locked: (s) => !s.secretsUnlocked || !upTo(s, 3),
         }),
         dir("admin", [
           file(
-            "egg4.txt",
-            "🥚 EGG #4 FOUND — 'The Administrator' 🥚\n" +
+            "egg5.txt",
+            "🥚 EGG #5 FOUND — 'The Administrator' 🥚\n" +
               "You ran a command as root and changed a system-level config.\n" +
               "\n" +
               "Skills demonstrated:\n" +
@@ -267,18 +315,18 @@ export function buildFilesystem(): FsNode {
               "to editing /etc/sudoers itself.\n" +
               "You now understand the basics of privilege escalation.\n" +
               "\n" +
-              "Root is almost yours — one egg to go. You've come impressively far.\n"
+              "Root is almost yours. You've come impressively far.\n"
           ),
           file(
             "admin-note.txt",
-            "You are in /admin — a directory that required editing /etc/privilege.cfg.\n" +
+            "You are in ~/admin — a directory that required editing /etc/privilege.cfg.\n" +
               "Real-world equivalents: /etc/sudoers, group policies, ACLs.\n" +
               "\n" +
               "Admin access here grants elevated capabilities.\n" +
               "The root of this machine may now be within reach.\n"
           ),
         ], {
-          locked: (s) => !s.adminUnlocked,
+          locked: (s) => !s.adminUnlocked || !upTo(s, 4),
         }),
       ]),
     ]),
@@ -288,7 +336,7 @@ export function buildFilesystem(): FsNode {
         "[binary archive]\n"
       ),
     ], {
-      locked: (s) => !s.adminUnlocked,
+      locked: (s) => !s.adminUnlocked || !upTo(s, 5),
     }),
     dir("var", [
       dir("log", [
@@ -312,7 +360,7 @@ export function buildFilesystem(): FsNode {
             "Apr 12 07:00:00 host01 systemd[1]: logrotate.service: Succeeded.\n" +
             "Apr 12 07:12:38 host01 NetworkManager[610]: <info> device (wlan0): state change: activated\n" +
             "Apr 12 07:55:03 host01 easterd[312]: sweep complete — one asset still unaccounted for\n" +
-            "Apr 12 07:55:04 host01 easterd[312]: relocating asset to /var/backups/egg6.txt\n" +
+            "Apr 12 07:55:04 host01 easterd[312]: relocating asset to /var/backups/egg7.txt\n" +
             "Apr 12 07:55:04 host01 easterd[312]: asset secured. nobody reads the logs anyway.\n" +
             "Apr 12 08:00:00 host01 systemd[1]: Starting Cleanup of Temporary Directories...\n" +
             "Apr 12 08:00:01 host01 systemd[1]: systemd-tmpfiles-clean.service: Succeeded.\n" +
@@ -330,12 +378,11 @@ export function buildFilesystem(): FsNode {
             "2026-04-11 22:11:31 install tree:amd64 <none> 2.1.0-1\n" +
             "2026-04-11 22:11:32 status installed tree:amd64 2.1.0-1\n"
         ),
-      // cd/ls only check the target node's lock, so subdirs repeat the parent's
-      ], { locked: (s) => !s.finalEggFound }),
+      ]),
       dir("backups", [
         file(
-          "egg6.txt",
-          "🥚 EGG #6 FOUND — 'The Investigator' 🥚\n" +
+          "egg7.txt",
+          "🥚 EGG #7 FOUND — 'The Investigator' 🥚\n" +
             "You didn't read the logs. You searched them. That's the way.\n" +
             "\n" +
             "Skills demonstrated:\n" +
@@ -347,7 +394,7 @@ export function buildFilesystem(): FsNode {
             "  grep \"Failed password\" /var/log/auth.log\n" +
             "The needle never stood a chance.\n" +
             "\n" +
-            "That's all six eggs — the hunt is complete. Outstanding work.\n" +
+            "That's all seven eggs — the hunt is complete. Outstanding work.\n" +
             "\n" +
             "Now go try a real shell:\n" +
             "  Windows: install WSL — open the Ubuntu app\n" +
@@ -356,9 +403,9 @@ export function buildFilesystem(): FsNode {
             "\n" +
             "Type `eggs` to admire your collection. You've earned it.\n"
         ),
-      ], { locked: (s) => !s.finalEggFound }),
+      ]),
     ], {
-      locked: (s) => !s.finalEggFound,
+      locked: (s) => !upTo(s, 6),
     }),
   ]);
 }
@@ -382,6 +429,22 @@ export function resolvePath(cwd: string, target: string): string {
     }
   }
   return "/" + parts.join("/");
+}
+
+// First locked directory on the way to `path` (the path itself included),
+// or null. Every command checks this, so a lock covers everything below it.
+export function lockedAt(root: FsNode, path: string, state: GameState): string | null {
+  let cur = root;
+  let curPath = "";
+  for (const p of path.split("/").filter(Boolean)) {
+    if (cur.kind !== "dir") return null;
+    const next = cur.children.find((c) => c.name === p);
+    if (!next) return null;
+    curPath += "/" + p;
+    if (next.kind === "dir" && next.locked?.(state)) return curPath;
+    cur = next;
+  }
+  return null;
 }
 
 export function findNode(root: FsNode, path: string): FsNode | null {

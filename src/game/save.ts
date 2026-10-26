@@ -4,7 +4,7 @@
 import { Difficulty, GameState, TerminalUser, initialState } from "../types";
 
 export const SAVE_KEY = "eggshell-autosave";
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2; // v2: 8 stages / 7 eggs, v1 saves are not compatible
 
 function encodeBase64(obj: unknown): string {
   const json = JSON.stringify(obj);
@@ -33,7 +33,6 @@ function serializeState(s: GameState) {
     knowsSudoPassword: s.knowsSudoPassword,
     adminUnlocked: s.adminUnlocked,
     rootEntered: s.rootEntered,
-    finalEggFound: s.finalEggFound,
     edits: s.edits,
     userCreated: s.userCreated,
     sudoTries: s.sudoTries,
@@ -41,7 +40,6 @@ function serializeState(s: GameState) {
     terminalUser: s.terminalUser,
     visited: s.visited,
     mapVisible: s.mapVisible,
-    hintAskedCount: s.hintAskedCount,
   };
 }
 
@@ -57,15 +55,13 @@ function deserializeState(data: Record<string, unknown>): GameState {
     knowsSudoPassword: (data.knowsSudoPassword as boolean) ?? false,
     adminUnlocked: (data.adminUnlocked as boolean) ?? false,
     rootEntered: (data.rootEntered as boolean) ?? false,
-    finalEggFound: (data.finalEggFound as boolean) ?? false,
     edits: (data.edits as Record<string, string>) ?? {},
-    userCreated: (data.userCreated as GameState["userCreated"]) ?? [],
+    userCreated: (data.userCreated as GameState["userCreated"]) ?? initialState.userCreated,
     sudoTries: (data.sudoTries as number) ?? 0,
     difficulty: (data.difficulty as Difficulty) ?? "easy",
     terminalUser: (data.terminalUser as TerminalUser) ?? "player",
     visited: (data.visited as string[]) ?? ["/home/player"],
     mapVisible: (data.mapVisible as boolean) ?? false,
-    hintAskedCount: (data.hintAskedCount as Record<number, number>) ?? {},
   };
 }
 

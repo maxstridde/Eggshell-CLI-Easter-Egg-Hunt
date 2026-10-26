@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { FsNode, GameState, initialState } from "./types";
-import { buildFilesystem } from "./game/fs";
+import { EGGS, buildFilesystem } from "./game/fs";
 import { commands, completeInput, isClear } from "./game/commands";
-import { stageLabel } from "./game/stage";
+import { stageLabel, tickHint } from "./game/stage";
 import { loadAutosave, writeAutosave } from "./game/save";
 import { getTheme } from "./terminal/theme";
 import { EditorModal } from "./terminal/EditorModal";
@@ -46,6 +46,7 @@ export default function App() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const firstRender = useRef(true);
+  const failStreak = useRef(0); // consecutive commands that printed an error
 
   const theme = getTheme(state.terminalUser);
 
@@ -98,18 +99,23 @@ export default function App() {
     setLines((prev) => [...prev, { text: "", prompt: `${prompt()} ${trimmed}` }]);
 
     const [cmd, ...args] = trimmed.split(/\s+/);
+    if (cmd !== "hint") setState(tickHint);
+
+    // Auto-nudge (easy/medium): after 3 failing commands in a row, point at `hint`.
+    let failed = false;
+    const report = (text: string, cls?: string) => {
+      if (cls === "text-red-400") failed = true;
+      print(text, cls);
+    };
     const handler = commands[cmd];
-    if (!handler) {
-      print(`${cmd}: command not found`, "text-red-400");
-      return;
-    }
-    handler(args, {
+    if (!handler) report(`${cmd}: command not found`, "text-red-400");
+    else handler(args, {
       root,
       state,
       cwd,
       setCwd,
       setState: (updater) => setState((s) => updater(s)),
-      print,
+      print: report,
       openEditor: (path, initial, onSave) => setEditor({ path, initial, onSave }),
       openMenu: () => setShowIntro(true),
       sudoActive,
@@ -117,6 +123,11 @@ export default function App() {
       passwordPrompt: (onSubmit, title, onCancel) =>
         setInlinePrompt({ label: title ?? "Password:", onSubmit, onCancel }),
     });
+    failStreak.current = failed && cmd !== "hint" ? failStreak.current + 1 : 0;
+    if (failStreak.current >= 3 && (state.difficulty === "easy" || state.difficulty === "medium")) {
+      print("stuck? try `hint`", "text-stone-400");
+      failStreak.current = 0;
+    }
   };
 
   const onSubmit = (e: React.FormEvent) => {
@@ -169,7 +180,7 @@ export default function App() {
     return () => window.removeEventListener("keydown", handler);
   }, [mobileMapOpen]);
 
-  const totalEggs = 6;
+  const totalEggs = EGGS.length;
   const found = state.eggsFound.length;
   const showMap =
     state.difficulty === "easy" ||
@@ -265,7 +276,7 @@ export default function App() {
         <IntroModal
           hasSave={hasSave}
           currentDifficulty={state.difficulty}
-          onDifficultyChange={(d) => setState((s) => ({ ...s, difficulty: d }))}
+          onDifficultyChange={(d) => setState((s) => ({ ...s, difficulty: d, hint: initialState.hint }))}
           onClose={() => setShowIntro(false)}
           onRestore={() => {
             const saved = loadAutosave();

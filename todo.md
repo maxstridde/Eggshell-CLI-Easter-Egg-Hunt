@@ -1,60 +1,52 @@
-# Eggshell — Improvement Backlog
+# Eggshell — finishing plan
 
-Reorganized 2026-07-03 by effort/benefit rating. Full phase history condensed at the bottom.
+One world, KISS, shipped to maxstridde.de via GitHub Pages. No future worlds.
+Branch: `finish-polish`. Small unsigned commits per step.
 
----
+## Design rules (2026-10-27)
 
-## Next session plan *(executing 2026-07-03)*
+- **Egg = stage.** 7 eggs, 7 stages, one counter. Reading the egg completes it.
+- **Four help levels:**
+  - 0: the world itself (files, eggs, error messages, door announcements).
+  - `hint` 1: a nudge.
+  - `hint` 2: a direction.
+  - `hint` 3: the exact commands.
+  - Every difficulty starts at 1. The cap is easy 3, medium 2, hard 1, impossible none.
+- **No commands in objectives or eggs.** Eggs use full verbs ("remove", "copy"). `help` maps each short name to its meaning ("rm — remove"), so names are understood, not memorised.
+- **Each egg ends with Hen's pointer to the next one.** The story: Hen, the retiring admin, hid 7 eggs in the machine you inherit.
+- **Easy-only lines in files point to `help`, never to exact commands.**
+- **Single source:** `scripts/story.mjs` writes every player-facing text in order of appearance to `docs/STORY.md`.
 
-Ordered by effort/benefit ratio. Everything here except the audit is a code change.
+## Incoherences found → fixes
 
-1. - [x] **Mobile line-height step-down** — *trivial effort, low–med benefit*
-   At 13 px the desktop `leading-6` (24 px) feels loose. Tighter leading below `sm`, unchanged on desktop. *(done: `leading-[1.4] sm:leading-6` in App.tsx)*
+- [ ] Stage 5 DECODE had no egg → merge into egg 5 "The Administrator" (steps: decode → sudo edit)
+- [ ] `final_egg.zip` / "THE PRIZE" / trophy is egg 6 of 7, not final → `egg6.zip` / `egg6.txt`, "The Root"
+- [ ] `start` says "Try `wifi list`" and the easy objective names exact commands → story-only objectives, `start` teaches ls/cat/help only
+- [ ] auth.log shows *player* running `sudo edit /etc/privilege.cfg` before the player did → Hen did it (with nano)
+- [ ] Logs say `host01`, but the hostname is `eggshell` → `eggshell`
+- [ ] notes.txt and README repeat each other → README = Hen's letter, notes = Hen's sticky notes (`~`, `..`, folders end in /)
+- [ ] admin-note.txt is redundant with egg 5 → delete
+- [ ] Doors open silently → announce "🔓 ~/x just unlocked" (also replaces the ad-hoc tidy message)
+- [ ] Easy started hints at tier 2 → all start at the nudge
+- [ ] Hints didn't show that asking again gives more → prefix `hint 1/3:`
+- [ ] `stage` and `eggs` duplicate the same concept → `eggs` shows found eggs and the next objective; `stage` is a hidden alias
+- [ ] New commands appear in `help` with no signal → after an egg: "(new commands — see `help`)"
 
-2. - [x] **`[ restore save ]` button fix** — *low effort, medium benefit*
-   Root cause identified: the autosave effect fires on every state change after mount, so changing difficulty in the intro modal (or any pre-restore state change) overwrites `localStorage["eggshell-autosave"]` with a near-fresh state before the player clicks restore. Fix: suppress autosave while the intro overlay is open; also reset `cwd` to `/home/player` on restore (parity with the `load` command). *(done: both fixes in App.tsx)*
+## Work items
 
-3. - [x] **Final-A codebase audit** — *medium effort (one session), med–high benefit*
-   Do now, before any Phase D work — catches drift from the B/C/C2 refactors while it's cheap. Scope: dead code, state fields set-but-never-read, lock-predicate correctness, `stageOf()` ordering, egg detection, in-game text staleness, CLAUDE.md / README accuracy, `[x]` claims in this file, memory staleness. Output: findings list below, no fixes in the audit itself.
-
-4. - [x] **Difficulty-aware clue file text** — *medium effort, high benefit*
-   Core to the teaching promise: easy players currently read the same cryptic clues as hard players. The enabler (`FsNode.content: (state) => string`) shipped in Phase C, so this is pure content work. Pattern: easy = base text + explicit extra pointer; medium = current text; hard/impossible = terser, hand-holding sentences removed. Files: `README.txt`, `notes.txt`, `clue2.riddle`, `how-to-sudo.txt`. (`editor-tips.txt` is a mechanics doc — same at all difficulties.)
-
-5. - [x] **Tab autocompletion (silent)** — *medium effort, med–high benefit*
-   Biggest "feels like a real shell" upgrade; Tab completion is itself CLI education. First token completes command names; later tokens complete paths (FS children + user-created files, reusing `resolvePath`/`findNode`). Multiple matches → longest common prefix. Not mentioned anywhere in UI/help — silent reward for real shell users.
-
-### Final-A Findings *(audit run 2026-07-03; all findings were text/docs and were fixed the same session)*
-
-- [x] `IntroModal.tsx` — said "5 easter eggs", game has 6 — **high** *(fixed)*
-- [x] `README.md` — four "five eggs / 5/5 / N/5" references — **high** *(fixed)*
-- [x] `README.md` — Stage 7 (SEARCH/grep) entirely missing from puzzle graph + solutions; "six-stage" header — **high** *(fixed: stage 7 walkthrough + graph entry added)*
-- [x] `README.md` — claimed `GameState` lives in `src/game/fs.ts` (moved to `src/types.ts` in Phase C) — **low** *(fixed)*
-- [x] `fs.ts` sudo_clue.json — leftover `# .b64` comment from the pre-rename filename — **medium** *(fixed)*
-- [x] `CLAUDE.md` — backlog claimed tab completion unimplemented and restore button uninvestigated; both done this session — **medium** *(fixed: backlog + new sections)*
-
-**Passed clean:** puzzle graph (all lock predicates, stage gates, egg detection for all 6 eggs incl. the userCreated `/root/final_egg.txt`), save system field coverage + versioning, tab-completion edge cases (locked dirs, user files), no dead code / set-but-never-read state fields.
-
----
-
-## Parked (deliberate, with reasons)
-
-- **Phase D — v2.0 level-builder architecture** — *high effort (multi-session), low benefit today*
-  The generic `flags: Record<string, boolean>` refactor rewrites every lock predicate, `stageOf`, the save format (version bump), and hints — for exactly one existing world. Classic YAGNI risk. **Do not start until a concrete second world is designed on paper.** Design notes preserved below for that day.
-
-- **Debug-mode trophy egg (`debug_mode = on` → hidden `trophy_egg.txt`)** — *low–med effort, low benefit*
-  Pure delight feature for the tiny fraction who flip the flag. Fun, but every next-session item serves more players. Revisit after the session list above ships.
-
-- **Stage 4 `knowsSudoPassword` never reset if the decoded value changes** — *low effort, low benefit*
-  Fine for the current puzzle; only becomes real if the puzzle changes — which is exactly Phase D territory. Fold into Phase D.
-
-### Phase D design notes (for when world 2 is real)
-
-- Generic `GameState.flags: Record<string, boolean>` replaces hardcoded booleans — central prerequisite for world-agnosticism.
-- `WorldDef` interface: `{ id, filesystem, stages, initialState, logic }` per world module under `src/worlds/`.
-- World loader: thin shim in App selecting a world at startup (config or URL param).
-- Lock predicates and `onEdit` handlers stay TypeScript (`logic.ts`); only content strings get extracted to JSON/YAML for non-programmer editing.
-
----
+- [ ] Story + texts (fs.ts, stage.ts, commands.ts, App banner, IntroModal)
+- [ ] Merge stages 5+6 → 7 stages; rename egg6 files; eggs/top bar show egg names
+- [ ] Hint tiers 1–3, cap per difficulty, `n/max` prefix
+- [ ] Door announcements (App effect on stage `opened` flip)
+- [ ] `help` grouped (shell vs game), meanings of names; `man <cmd>` shows one entry
+- [ ] Aliases: `nano`, `vim`, `vi` → edit; `exit` → menu (hidden)
+- [ ] Editor keyboard: Esc/Ctrl+S from anywhere in the modal, Ctrl+O (nano save); intro `[ enter shell ]` autofocus
+- [ ] `scripts/story.mjs` → `docs/STORY.md`
+- [ ] Ghost-text autocomplete (→ / Tab accepts, double Tab lists candidates); mention in start/help/intro
+- [ ] Playthrough check updated
+- [ ] Ship: vite base `./`, deploy.yml stray quote, package name, index.html egg count + og:url
+- [ ] README: minimal solution; MIT LICENSE; CLAUDE.md updated
+- [ ] You play `npm run preview` → merge to main → deploy
 
 ## Done (condensed history)
 

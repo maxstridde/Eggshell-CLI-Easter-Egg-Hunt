@@ -55,9 +55,9 @@ Its teaching model: each level opens with a short concept dialog, then the task.
 
 Already matching here: state-based wins (locks check state, not typed commands), objective (`eggs`), concept framing (every egg plus Hen's pointer), and in-world refusals instead of "command not found".
 
-Suggestions (pending your pick):
-- [ ] **Confirm before the exact tier.** The first time the tier with the exact commands is reached, print "The next hint is the exact answer. Type `hint` again if you want it." This fits "hints only after trying". Effort S.
-- [ ] **Command count on the win.** Print "You used N commands (Hen's way: 19)". It adds replay value. Effort S.
+Suggestions (both adopted 2026-10-27):
+- [x] **Confirm before the exact tier.** The first time the tier with the exact commands is reached, print "The next hint is the exact answer. Type `hint` again if you want it." This fits "hints only after trying". Effort S.
+- [x] **Command count on the win.** Print "You used N commands (Hen's way: 19)". It adds replay value. Effort S.
 - [ ] **Replay the solution (`hint` tier 3 as typed commands).** Skip: it spoils the doing.
 
 Not copied: goal graph and animations (monochrome CLI rule), level select/sandbox/builder (one world), i18n machinery, and a free solution reveal (the egg text is the reward).

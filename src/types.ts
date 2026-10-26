@@ -45,6 +45,7 @@ export interface GameState {
   // Hint escalation for the current situation (stage + sub-step). Not saved:
   // resets on load, on difficulty change, and whenever `key` changes.
   hint: { key: string; asks: number; since: number };
+  commands: number; // commands typed while hunting (frozen at the win)
 }
 
 export const initialState: GameState = {
@@ -71,4 +72,5 @@ export const initialState: GameState = {
   visited: ["/home/player"],
   mapVisible: false,
   hint: { key: "", asks: 0, since: 0 },
+  commands: 0,
 };

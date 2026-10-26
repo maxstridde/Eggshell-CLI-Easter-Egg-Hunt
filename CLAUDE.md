@@ -76,7 +76,7 @@ Four help levels: 0 = the world (files, eggs, door announcements), then `hint` t
 | map panel | always | toggle | toggle | hidden |
 | clue-file extras | `help` pointers | base | stripped | stripped |
 
-Escalation state is `state.hint {key, asks, since}` (not saved). The key is stage + `step` + door-open, so sub-progress restarts at the nudge; 8 commands without asking drop a tier; difficulty change and load reset it. On easy/medium, 3 failed commands in a row print "stuck? try `hint`". When a stage's `opened` flips within the stage, App prints its `announce` line.
+Escalation state is `state.hint {key, asks, since}` (not saved). The key is stage + `step` + door-open, so sub-progress restarts at the nudge; 8 commands without asking drop a tier; difficulty change and load reset it. On easy/medium, 3 failed commands in a row print "stuck? try `hint`". Before the exact tier (easy only) one extra `hint` is required ("The next hint is the exact answer…"). `state.commands` counts commands while hunting; the win shows it against `HEN_WAY` (21, the README solution). When a stage's `opened` flips within the stage, App prints its `announce` line.
 
 ### Password prompts
 

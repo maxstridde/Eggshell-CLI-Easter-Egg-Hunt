@@ -151,12 +151,21 @@ export const doorOpen = (idx: number, s: GameState) => !!STAGES[idx]?.opened?.(s
 // `eggs` / top bar: the objective for the egg being hunted, per difficulty.
 export function nextEggLine(s: GameState): string {
   const idx = activeStageIndex(s);
-  if (idx < 0) return "🏆 All seven eggs found. You've hatched.";
+  if (idx < 0) return `🏆 All seven eggs found. You've hatched.\n${parLine(s.commands)}`;
   if (s.difficulty === "impossible") return "";
   const st = STAGES[idx];
   const head = `Next: #${idx + 1} ${st.name}`;
   return s.difficulty === "hard" ? head : `${head} — ${st.goal}`;
 }
+
+// Win screen score, learnGitBranching-style: commands typed vs. the README solution.
+export const HEN_WAY = 21;
+export const parLine = (n: number) =>
+  `You used ${n} commands (Hen's way: ${HEN_WAY}).` + (n <= HEN_WAY ? " Hen is impressed." : "");
+
+// Counts a typed command while an egg is still being hunted.
+export const countCommand = (s: GameState): GameState =>
+  activeStageIndex(s) < 0 ? s : { ...s, commands: s.commands + 1 };
 
 // --- Hint escalation --------------------------------------------------------
 // Repeated asks climb tiers 1→3, capped by difficulty. The counter belongs to
@@ -164,6 +173,7 @@ export function nextEggLine(s: GameState): string {
 // COOLDOWN commands without asking drop it one tier. Difficulty change and
 // load reset it entirely.
 const TIER_CAP: Record<Difficulty, number> = { easy: 2, medium: 1, hard: 0, impossible: -1 };
+const EXACT = 2; // tier index of the exact-commands hint
 const COOLDOWN = 8; // ponytail: fixed, tune after playtest
 
 function hintKey(s: GameState, idx: number): string {
@@ -182,14 +192,18 @@ export function stageHint(s: GameState, stageIndex?: number): string | null {
   const st = STAGES[idx];
   if (cap < 0 || !st) return null;
   if (doorOpen(idx, s) && st.gate(s)) return st.announce ?? "The way is open — find the egg.";
-  const tier = Math.min(asks(s, idx), cap);
+  // Before the exact answer, ask once more (learnGitBranching's "are you sure?").
+  const n = asks(s, idx);
+  if (cap >= EXACT && n === EXACT) return "The next hint is the exact answer. Type `hint` again if you want it.";
+  const tier = Math.min(cap >= EXACT && n > EXACT ? n - 1 : n, cap);
   const h = st.hints[tier];
   return `hint ${tier + 1}/${cap + 1}: ${typeof h === "function" ? h(s) : h}`;
 }
 
 // True once asking again cannot give more (used for the difficulty nudge).
 export function hintExhausted(s: GameState, idx: number): boolean {
-  return asks(s, idx) > TIER_CAP[s.difficulty];
+  const cap = TIER_CAP[s.difficulty];
+  return asks(s, idx) > cap + (cap >= EXACT ? 1 : 0);
 }
 
 export function recordHint(s: GameState, idx: number): GameState {

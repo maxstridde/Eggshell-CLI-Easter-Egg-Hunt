@@ -40,6 +40,7 @@ function serializeState(s: GameState) {
     terminalUser: s.terminalUser,
     visited: s.visited,
     mapVisible: s.mapVisible,
+    commands: s.commands,
   };
 }
 
@@ -58,6 +59,7 @@ function deserializeState(data: Record<string, unknown>): GameState {
     edits: (data.edits as Record<string, string>) ?? {},
     userCreated: (data.userCreated as GameState["userCreated"]) ?? initialState.userCreated,
     sudoTries: (data.sudoTries as number) ?? 0,
+    commands: (data.commands as number) ?? 0,
     difficulty: (data.difficulty as Difficulty) ?? "easy",
     terminalUser: (data.terminalUser as TerminalUser) ?? "player",
     visited: (data.visited as string[]) ?? ["/home/player"],

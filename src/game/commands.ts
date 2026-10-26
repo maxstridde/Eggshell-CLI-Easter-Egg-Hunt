@@ -1,6 +1,6 @@
 import { Difficulty, FsNode, GameState, initialState } from "../types";
 import { EGGS, ROOT_EGG, TIDY_EGG, fileContent, findNode, hasBackup, lockedAt, resolvePath } from "./fs";
-import { STAGES, activeStageIndex, hintExhausted, nextEggLine, recordHint, stageHint } from "./stage";
+import { STAGES, activeStageIndex, hintExhausted, nextEggLine, parLine, recordHint, stageHint } from "./stage";
 import { exportSave, importSave } from "./save";
 
 export interface CmdContext {
@@ -486,6 +486,8 @@ export const commands: Record<string, CommandHandler> = {
       // The egg just read completes its stage; the next stage may bring commands.
       const next = EGGS.indexOf(target) + 1;
       if (HELP_ENTRIES.some((e) => e.minStage === next)) ctx.print("(new commands available — see `help`)", "text-stone-400");
+      // Last egg: ctx.state predates this command's count, hence + 1.
+      if (next === EGGS.length) ctx.print(parLine(ctx.state.commands + 1), "text-yellow-300");
     }
   },
 

@@ -41,6 +41,12 @@ try {
   check((await input.inputValue()) === "cat README.txt", "Tab accepts the suggestion");
   await input.fill("");
 
+  // Easy: nudge, direction, then a confirm before the exact answer.
+  await run("hint"); await run("hint"); await run("hint");
+  check(/exact answer/.test(await last()), "confirm before the exact hint");
+  await run("hint");
+  check(/hint 3\/3: `cat \/etc\/wifi.json`/.test(await last()), "exact hint after confirming");
+
   await run("wifi connect EggHunt-5G"); await password("yolk-yolk-123");
   await run("cat ~/documents/egg1.txt");
   await run("difficulty medium"); await run("hint"); await run("hint");
@@ -70,6 +76,7 @@ try {
   await run("sudo cd /root"); await password("secret-egg");
   await run("unzip egg6.zip"); await run("cat egg6.txt");
   await run("grep -r egg /var/log"); await run("cat /var/backups/egg7.txt");
+  check(/Hen's way: 21/.test(await last()), "command count on the last egg");
   await run("eggs");
   const bar = await page.locator("text=🥚").first().innerText();
   check(bar.includes("7/7"), `egg counter: ${bar.trim()}`);

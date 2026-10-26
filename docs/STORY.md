@@ -517,4 +517,5 @@ Eggs: 7 / 7
   🥚 #6 The Root
   🥚 #7 The Investigator
 🏆 All seven eggs found. You've hatched.
+You used 0 commands (Hen's way: 21). Hen is impressed.
 ```

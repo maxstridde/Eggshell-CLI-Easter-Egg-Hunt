@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { FsNode, GameState, initialState } from "./types";
 import { EGGS, buildFilesystem } from "./game/fs";
 import { candidates, commands, completeInput, isClear } from "./game/commands";
-import { STAGES, activeStageIndex, doorOpen, tickHint } from "./game/stage";
+import { STAGES, activeStageIndex, countCommand, doorOpen, tickHint } from "./game/stage";
 import { loadAutosave, writeAutosave } from "./game/save";
 import { getTheme } from "./terminal/theme";
 import { EditorModal } from "./terminal/EditorModal";
@@ -112,6 +112,7 @@ export default function App() {
     setLines((prev) => [...prev, { text: "", prompt: `${prompt()} ${trimmed}` }]);
 
     const [cmd, ...args] = trimmed.split(/\s+/);
+    setState(countCommand);
     if (cmd !== "hint") setState(tickHint);
 
     // Auto-nudge (easy/medium): after 3 failing commands in a row, point at `hint`.

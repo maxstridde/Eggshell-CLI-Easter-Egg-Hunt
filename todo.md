@@ -34,6 +34,12 @@ Branch: `finish-polish`. Small unsigned commits per step.
 
 ## Work items
 
+- [ ] `scripts/story.mjs` → `docs/STORY.md`
+- [x] Ghost-text autocomplete (→ / Tab accepts, double Tab lists candidates); mention in start/help/intro
+- [x] Ship: vite base `./`, deploy.yml stray quote, package name, index.html egg count + og:url
+- [x] README: minimal solution; MIT LICENSE
+- [ ] CLAUDE.md updated
+- [ ] You play `npm run preview` → merge to main → deploy
 - [x] Story + texts (fs.ts, stage.ts, commands.ts, App banner, IntroModal)
 - [x] Merge stages 5+6 → 7 stages; rename egg6 files; eggs/top bar show egg names
 - [x] Hint tiers 1–3, cap per difficulty, `n/max` prefix
@@ -41,12 +47,7 @@ Branch: `finish-polish`. Small unsigned commits per step.
 - [x] `help` grouped (shell vs game), meanings of names; `man <cmd>` shows one entry
 - [x] Aliases: `nano`, `vim`, `vi` → edit; `exit` → menu (hidden)
 - [x] Editor keyboard: Esc/Ctrl+S from anywhere in the modal, Ctrl+O (nano save); intro `[ enter shell ]` autofocus
-- [ ] `scripts/story.mjs` → `docs/STORY.md`
-- [ ] Ghost-text autocomplete (→ / Tab accepts, double Tab lists candidates); mention in start/help/intro
 - [x] Playthrough check updated (14 checks: bypasses, hint reset, door announce, new-commands nudge, nano alias, win)
-- [ ] Ship: vite base `./`, deploy.yml stray quote, package name, index.html egg count + og:url
-- [ ] README: minimal solution; MIT LICENSE; CLAUDE.md updated
-- [ ] You play `npm run preview` → merge to main → deploy
 
 ## Inspiration: learnGitBranching (researched 2026-10-27)
 

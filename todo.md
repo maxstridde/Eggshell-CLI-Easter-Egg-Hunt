@@ -65,6 +65,16 @@ Branch: `finish-polish`. Small unsigned commits per step.
 - [x] schema.org JSON-LD enriched
 - [x] Playtest 2 (2026-10-27) → fixes, see below
 
+## Playtest 3 (2026-10-27) → fixes
+
+- [x] `start` lists `map` (medium/hard, where it toggles)
+- [x] Menu date shorter: no weekday, "27. Okt. 18:02"; restore/delete right-aligned
+- [x] `load <string>` prints the same restore lines as the menu
+- [x] A lock that only waits for an earlier egg says which egg comes first
+- [x] .attic/2019: receipts/, photos/, more files in misc/
+- [x] Win animation 8 s
+- [x] Credits under the win table (MaxStridde.de, GitHub)
+
 ## Playtest 2 (2026-10-27) → fixes
 
 - [x] grep -r egg missed egg 7 (only "EGG" upper case in it) → egg text says "egg"; `grep -i`

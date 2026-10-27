@@ -239,13 +239,16 @@ export const commands: Record<string, CommandHandler> = {
 
   man: (args, ctx) => {
     const name = args[0] === "nano" || args[0] === "vim" || args[0] === "vi" ? "edit" : args[0];
-    const e = HELP_ENTRIES.find((h) => h.cmd.split(" ")[0] === name);
-    if (!e) {
+    // All entries of the name: `man ls` shows both ls and ls -a.
+    const es = HELP_ENTRIES.filter((h) => h.cmd.split(" ")[0] === name);
+    if (!es.length) {
       ctx.print(name ? `man: no manual entry for ${name}` : "man: which command? e.g. `man ls`", "text-red-400");
       return;
     }
-    ctx.print(`${e.cmd}`, "text-emerald-300");
-    ctx.print(`  ${e.desc}`);
+    for (const e of es) {
+      ctx.print(`${e.cmd}`, "text-emerald-300");
+      ctx.print(`  ${e.desc}`);
+    }
   },
 
   start: (_, ctx) => {
@@ -268,7 +271,7 @@ export const commands: Record<string, CommandHandler> = {
   hint: (args, ctx) => {
     const { difficulty } = ctx.state;
     if (difficulty === "impossible") {
-      ctx.print("hint: access denied on impossible difficulty", "text-red-400");
+      ctx.print("hint: access denied on impossible difficulty — `difficulty easy` brings hints back, any time", "text-red-400");
       return;
     }
 
@@ -783,6 +786,10 @@ export const commands: Record<string, CommandHandler> = {
       ctx.print(`removed '${shown}'`, "text-emerald-300");
     }
     if (removed.length === 0) return;
+    // Egg 3: the visible junk is gone but the hidden one isn't — say so, or players think they're done.
+    const isTmp = (p: string) => /^\/home\/player\/secrets\/[^/]+\.tmp$/.test(p);
+    if (removed.some(isTmp) && ctx.state.userCreated.some((u) => isTmp(u.path) && !removed.includes(u.path)))
+      ctx.print("~/secrets is still over quota: something temporary is left. Not every file shows up in a plain listing.", "text-yellow-300");
     const update = (s: GameState) => withTidy({ ...s, userCreated: s.userCreated.filter((u) => !removed.includes(u.path)) });
     ctx.setState(update);
   },

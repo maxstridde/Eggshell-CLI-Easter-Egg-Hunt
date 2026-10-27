@@ -23,10 +23,10 @@ export function IntroModal({
   const [loadError, setLoadError] = useState("");
 
   const difficultyLabels: { value: Difficulty; label: string; desc: string }[] = [
-    { value: "easy", label: "Easy", desc: "hints go all the way" },
-    { value: "medium", label: "Medium", desc: "hints stop before the answer" },
-    { value: "hard", label: "Hard", desc: "one nudge per egg" },
-    { value: "impossible", label: "Impossible", desc: "no hints, no map" },
+    { value: "easy", label: "Easy", desc: "new to the terminal — hints go all the way" },
+    { value: "medium", label: "Medium", desc: "typed a few commands before — hints stop before the answer" },
+    { value: "hard", label: "Hard", desc: "at home in a shell — one nudge per egg" },
+    { value: "impossible", label: "Impossible", desc: "you know bash — no hints, no map" },
   ];
 
   const mapNote: Record<Difficulty, string> = {

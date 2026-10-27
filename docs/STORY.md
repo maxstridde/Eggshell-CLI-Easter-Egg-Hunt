@@ -270,10 +270,39 @@ Door announcement: ✨ Something new appeared in ~/secrets.
 2. Remove the files ending in .tmp. One command takes several names — or the wildcard *.tmp.
 3. `rm ~/secrets/*.tmp`, then `ls -a ~/secrets`, then `rm ~/secrets/.cache.tmp`, then `mv ~/secrets/report.txt ~/documents/`
 
-[sub-step 2: report]
+[sub-step 2: hidden]
+1. Read quota.txt in ~/secrets. Two jobs: some files go, one file moves.
+2. One .tmp file is hidden: its name starts with a dot, so plain listings and * skip it. `help` shows how to list everything.
+3. `ls -a ~/secrets`, then `rm ~/secrets/.cache.tmp`, then `mv ~/secrets/report.txt ~/documents/`
+
+[sub-step 3: report]
 1. Read quota.txt in ~/secrets. Two jobs: some files go, one file moves.
 2. The junk is gone. Now move report.txt into ~/documents. `help` lists a command for moving.
 3. `mv ~/secrets/report.txt ~/documents/`
+```
+
+### rm *.tmp (the hidden one is left)
+
+```
+~/secrets is still over quota: something temporary is left. Not every file shows up in a plain listing.
+```
+
+### /home/player/secrets/quota.txt  (easy)
+
+```
+!! ~/secrets is still over quota !!
+- something temporary is still in here. Not every file shows up in a plain listing.
+- report.txt is a document — it belongs with the other documents
+
+(Names starting with a dot are hidden. `help` shows how to list them too.)
+```
+
+### /home/player/secrets/quota.txt  (medium, hard)
+
+```
+!! ~/secrets is still over quota !!
+- something temporary is still in here. Not every file shows up in a plain listing.
+- report.txt is a document — it belongs with the other documents
 ```
 
 ### /home/player/secrets/egg3.txt
@@ -497,9 +526,9 @@ Oct 26 08:00:01 eggshell systemd[1]: systemd-tmpfiles-clean.service: Succeeded.
 Oct 26 08:17:44 eggshell kernel: [13544.108] audit: type=1400 apparmor="ALLOWED" profile="lsb_release"
 Oct 26 08:30:00 eggshell systemd[1]: Starting Rotate log files...
 Oct 26 08:30:01 eggshell systemd[1]: logrotate.service: Succeeded.
-Oct 27 01:58:00 eggshell easterd[312]: sweep complete — one asset still unaccounted for
-Oct 27 01:59:00 eggshell easterd[312]: relocating egg #7 into /var/backups — deep down, where nobody looks
-Oct 27 01:59:00 eggshell easterd[312]: egg #7 labelled golden-yolk. nobody reads the logs anyway.
+Oct 27 16:51:53 eggshell easterd[312]: sweep complete — one asset still unaccounted for
+Oct 27 16:52:53 eggshell easterd[312]: relocating egg #7 into /var/backups — deep down, where nobody looks
+Oct 27 16:52:53 eggshell easterd[312]: egg #7 labelled golden-yolk. nobody reads the logs anyway.
 ```
 
 ### /var/backups/.attic/2019/misc/egg7.txt
@@ -507,7 +536,7 @@ Oct 27 01:59:00 eggshell easterd[312]: egg #7 labelled golden-yolk. nobody reads
 ```
 🥚 EGG #7 of 7 — The Investigator
 label: golden-yolk
-You didn't read the logs, and you didn't dig through the mess. You searched.
+You didn't read the logs line by line, and you didn't dig through the mess. You searched.
 
 grep stands for "global regular expression print": it prints every
 line that matches. The same move finds real problems:

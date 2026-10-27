@@ -72,7 +72,10 @@ file(EGGS[1], s);
 
 stage(2, s);
 file("/home/player/secrets/quota.txt", s);
-hints(2, [s, { ...s, userCreated: s.userCreated.filter((u) => !u.path.endsWith(".tmp")) }]);
+const onlyHidden = { ...s, userCreated: s.userCreated.filter((u) => !u.path.endsWith(".tmp") || u.path.split("/").pop().startsWith(".")) };
+hints(2, [s, onlyHidden, { ...s, userCreated: s.userCreated.filter((u) => !u.path.endsWith(".tmp")) }]);
+block("rm *.tmp (the hidden one is left)", "~/secrets is still over quota: something temporary is left. Not every file shows up in a plain listing.");
+file("/home/player/secrets/quota.txt", onlyHidden);
 block(EGGS[2], TIDY_EGG);
 s = { ...s, userCreated: [{ type: "file", path: EGGS[2], content: TIDY_EGG }], eggsFound: EGGS.slice(0, 3) };
 file("/home/player/secrets/quota.txt", s);

@@ -414,7 +414,7 @@ export function buildFilesystem(): FsNode {
           "egg7.txt",
           "🥚 EGG #7 of 7 — The Investigator\n" +
             "label: golden-yolk\n" +
-            "You didn't read the logs, and you didn't dig through the mess. You searched.\n" +
+            "You didn't read the logs line by line, and you didn't dig through the mess. You searched.\n" +
             "\n" +
             "grep stands for \"global regular expression print\": it prints every\n" +
             "line that matches. The same move finds real problems:\n" +

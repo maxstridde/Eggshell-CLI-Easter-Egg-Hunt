@@ -64,7 +64,9 @@ try {
   check(!/← new/.test(await out()), "second help: nothing new");
   await run("cd ~/secrets"); await run("rm report.txt");
   check(/still needed/.test(await last()), "rm report.txt refused");
-  await run("rm *.tmp"); await run("mv report.txt ~/documents/");
+  await run("rm *.tmp");
+  check(/still over quota/.test(await last()), "rm *.tmp warns a hidden one is left");
+  await run("mv report.txt ~/documents/");
   await run("cat quota.txt");
   check(/still over quota/.test(await out()) && !/egg3/.test(await (async () => { await run("ls"); return last(); })()), "hidden .cache.tmp survives rm *.tmp");
   await run("ls -a");

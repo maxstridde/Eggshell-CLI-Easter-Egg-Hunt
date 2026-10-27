@@ -166,6 +166,11 @@ export function IntroModal({
             [ enter shell ]
           </button>
         </div>
+
+        <div className="mt-4 text-xs text-stone-400">
+          made by <a href="https://maxstridde.de/" target="_blank" rel="noopener" className="text-emerald-300 hover:underline">MaxStridde<span className="text-stone-400">.de</span></a>
+          {" · "}source code on <a href="https://github.com/maxstridde/Eggshell-CLI-Easter-Egg-Hunt" target="_blank" rel="noopener" className="text-emerald-300 hover:underline">GitHub</a>
+        </div>
       </div>
     </div>
   );

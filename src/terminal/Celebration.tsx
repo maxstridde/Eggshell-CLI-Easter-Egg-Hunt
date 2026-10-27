@@ -5,8 +5,8 @@ import { useEffect, useRef, useState } from "react";
 const W = 48;
 const H = 22;
 const SHADES = ".,-~:;=!*#$@";
-const SPIN_MS = 8000;
-const CHICK_MS = 2000; // 10 s in all
+const SPIN_MS = 6000;
+const CHICK_MS = 2000; // 8 s in all
 
 export const CHICK = [
   "",

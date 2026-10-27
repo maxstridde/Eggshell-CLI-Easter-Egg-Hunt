@@ -134,10 +134,10 @@ export function IntroModal({
             <div className="text-stone-400 text-xs mb-2">SAVED GAMES</div>
             {saves.map((sv) => (
               <div key={sv.slot} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-300 py-0.5">
-                <span className="min-w-0">
+                <span className="min-w-0 mr-auto">
                   {sv.name || "player"} · 🥚 {sv.eggs}/7{sv.eggs === 7 ? " (finished)" : ""}
                   {sv.savedAt > 0 && (
-                    <span className="text-stone-400"> · {new Date(sv.savedAt).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                    <span className="text-stone-400"> · {new Date(sv.savedAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })} {new Date(sv.savedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</span>
                   )}
                 </span>
                 <button onClick={() => onRestore(sv.slot)} className="text-emerald-300 hover:underline">[ restore ]</button>

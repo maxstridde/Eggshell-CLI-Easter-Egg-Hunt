@@ -47,7 +47,7 @@ export const STAGES: StageDef[] = [
       (s) =>
         s.createdMagicDir
           ? "The magic folder exists. Now leave a token inside it — an empty file will do. `help` shows how."
-          : "Make a folder named magic in your home folder. `help` shows the command for making directories.",
+          : "Make a folder named magic in your home folder itself (~), not inside documents. `help` shows the command for making directories.",
       (s) => (s.createdMagicDir ? "`touch ~/magic/token.txt`" : "`mkdir ~/magic`, then `touch ~/magic/token.txt`"),
     ],
     gate: (s) => !hasEgg(s, 2),

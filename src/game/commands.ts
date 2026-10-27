@@ -497,8 +497,9 @@ export const commands: Record<string, CommandHandler> = {
       return;
     }
     const target = resolvePath(ctx.cwd, args[0]);
-    if (!target.startsWith("/home/player")) {
-      ctx.print("mkdir: permission denied", "text-red-400");
+    if (!inHome(target)) {
+      ctx.print(`mkdir: cannot create directory '${args[0]}': Permission denied`, "text-red-400");
+      ctx.print("Only your home, ~ (/home/player), is yours to change.", "text-stone-400");
       return;
     }
     if (blocked(ctx, "mkdir", target, args[0])) return;
@@ -523,8 +524,9 @@ export const commands: Record<string, CommandHandler> = {
       return;
     }
     const target = resolvePath(ctx.cwd, args[0]);
-    if (!target.startsWith("/home/player")) {
-      ctx.print("touch: permission denied", "text-red-400");
+    if (!inHome(target)) {
+      ctx.print(`touch: cannot touch '${args[0]}': Permission denied`, "text-red-400");
+      ctx.print("Only your home, ~ (/home/player), is yours to change.", "text-stone-400");
       return;
     }
     if (blocked(ctx, "touch", target, args[0])) return;
@@ -988,6 +990,9 @@ commands.stage = commands.eggs;
 // Tab completion and ghost text share one source.
 // First token completes command names; later tokens complete paths.
 // candidates() returns every matching token for the last word of `raw`.
+// ponytail: prefix + slash, so /home/playerx isn't "home"
+const inHome = (p: string) => p === "/home/player" || p.startsWith("/home/player/");
+
 export function candidates(raw: string, root: FsNode, state: GameState, cwd: string): string[] {
   const parts = raw.split(/\s+/);
   const last = parts[parts.length - 1] ?? "";

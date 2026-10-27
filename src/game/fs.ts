@@ -198,7 +198,8 @@ export function buildFilesystem(): FsNode {
           file("clue2.riddle", (s) =>
             "A riddle from Hen:\n" +
               "\n" +
-              "  In your home there is room for something new.\n" +
+              "  Not in here — in your home itself, in ~,\n" +
+              "  there is room for something new.\n" +
               "  Make it magic — a folder by that very name.\n" +
               "  Then leave a token inside, token.txt,\n" +
               "  to prove you were there. My secrets will open to you.\n" +

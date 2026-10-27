@@ -54,7 +54,7 @@ export function IntroModal({
         </div>
         <div className="space-y-3 text-sm leading-6">
           <p>
-            Hen, the admin of <span className="text-emerald-300">eggshell.local</span>, retires on
+            Hen, the admin of <span className="text-emerald-300">eggshell.local</span>, retires on{" "}
             {retireDate()}. Before leaving, Hen hid <span className="text-yellow-300">7 eggs</span> on
             the machine and handed the account to you. Each egg is behind a door only the
             command line can open — no mouse, no icons.

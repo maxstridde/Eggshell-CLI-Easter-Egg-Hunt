@@ -102,7 +102,7 @@ export default function App() {
   const runCommand = (raw: string) => {
     const trimmed = raw.trim();
     if (!trimmed) {
-      setLines((prev) => [...prev, { text: "" }]);
+      setLines((prev) => [...prev, { text: "", prompt: prompt() }]);
       return;
     }
     if (isClear(trimmed)) {

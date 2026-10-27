@@ -991,9 +991,11 @@ commands.stage = commands.eggs;
 export function candidates(raw: string, root: FsNode, state: GameState, cwd: string): string[] {
   const parts = raw.split(/\s+/);
   const last = parts[parts.length - 1] ?? "";
-  if (parts.length === 1) {
-    return Object.keys(commands).filter((c) => !HIDDEN.includes(c) && c.startsWith(last)).sort();
-  }
+  const commandNames = () => Object.keys(commands).filter((c) => !HIDDEN.includes(c));
+  if (parts.length === 1) return commandNames().filter((c) => c.startsWith(last)).sort();
+  // Fixed-word arguments complete from their own list, not from file names.
+  const words = { difficulty: DIFFICULTY_LEVELS, man: commandNames() }[parts[0]];
+  if (words) return parts.length === 2 ? words.filter((w) => w.startsWith(last)).sort() : [];
 
   // Path completion: split the token into directory part + name prefix.
   const slash = last.lastIndexOf("/");
@@ -1004,6 +1006,8 @@ export function candidates(raw: string, root: FsNode, state: GameState, cwd: str
 
   const names: string[] = [];
   if (lockedAt(root, dirPath, state)) return [];
+  // /root's contents stay unseen until you've entered it once (as root).
+  if (dirPath === "/root" && !state.rootEntered) return [];
   if (node?.kind === "dir") {
     for (const c of node.children) names.push(c.name + (c.kind === "dir" ? "/" : ""));
   }

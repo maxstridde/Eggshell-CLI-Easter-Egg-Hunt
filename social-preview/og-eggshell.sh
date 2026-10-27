@@ -33,9 +33,10 @@ S3='#86EFAC'           # pale green    — circle, top-right
 BTN_COL='#4ADE80'
 BTN_TXT='#0F172A'
 
-FONT_MONO="/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf"
-FONT_BOLD="/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-FONT_REG="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+FONT_DIR="${FONT_DIR:-/usr/share/fonts/truetype/dejavu}"  # macOS: point at an unpacked DejaVu ttf/ dir
+FONT_MONO="$FONT_DIR/DejaVuSansMono-Bold.ttf"
+FONT_BOLD="$FONT_DIR/DejaVuSans-Bold.ttf"
+FONT_REG="$FONT_DIR/DejaVuSans.ttf"
 # -----------------------------------------------------------------------
 
 OUTPUT="${1:-eggshell-og.png}"
@@ -66,15 +67,16 @@ convert -size ${BOX_W}x${CHROME_H} xc:"$CHROME_BG" \
 # 2) Terminal body — representative game session
 convert -size ${BOX_W}x${BODY_H} xc:"$TERM_BG" \
   -font "$FONT_MONO" -pointsize 16 -gravity northwest \
-  -fill "$SLATE"  -annotate +16+14  "# 5 eggs hidden in the filesystem" \
-  -fill "$GREEN"  -annotate +16+46  "$ ls" \
-  -fill "$WHITE"  -annotate +16+70  "documents/  secrets/  vault/ [locked]" \
-  -fill "$GREEN"  -annotate +16+108 "$ cat egg1.txt" \
-  -fill '#FCD34D' -annotate +16+132 "[egg] Egg No. 1 collected!" \
-  -fill "$GREEN"  -annotate +16+180 "$ sudo cd /root" \
-  -fill "$SLATE"  -annotate +16+204 "Password: ........" \
-  -fill "$GREEN"  -annotate +16+252 "$ unzip final_egg.zip" \
-  -fill '#FCD34D' -annotate +16+276 "[win] All 5 eggs found!" \
+  -fill "$SLATE"  -annotate +16+14  "# 7 eggs hidden in the filesystem" \
+  -fill "$GREEN"  -annotate +16+46  "$ wifi connect EggHunt-5G" \
+  -fill "$GREEN"  -annotate +16+78  "$ ls" \
+  -fill "$WHITE"  -annotate +16+102 "documents/  secrets/  vault/ [locked]" \
+  -fill "$GREEN"  -annotate +16+134 "$ cat egg1.txt" \
+  -fill '#FCD34D' -annotate +16+158 "EGG #1 of 7 - The Signal" \
+  -fill "$GREEN"  -annotate +16+190 "$ sudo cd /root" \
+  -fill "$SLATE"  -annotate +16+214 "Password: ........" \
+  -fill "$GREEN"  -annotate +16+246 "$ grep -r golden-yolk /var" \
+  -fill '#FCD34D' -annotate +16+270 "EGG #7 of 7 - you found them all!" \
   "$TMP/body.png"
 
 # 3) Combine chrome + body into one card canvas
@@ -135,7 +137,7 @@ convert "$TMP/bg.png" \
   -font "$FONT_REG"  -fill "$SLATE" \
     -gravity northwest -pointsize 27 -annotate +${TX}+172 "$SUBTITLE" \
   -font "$FONT_BOLD" -fill "$WHITE" \
-    -gravity northwest -pointsize 84 -annotate +${TX}+207 "$TITLE" \
+    -gravity northwest -pointsize 84 -annotate +${TX}+220 "$TITLE" \
   "$TMP/button.png"  -gravity northwest -geometry +${TX}+315 -compose over -composite \
   "$TMP/topline.png" -gravity north     -geometry +0+0       -compose over -composite \
   "$OUTPUT"

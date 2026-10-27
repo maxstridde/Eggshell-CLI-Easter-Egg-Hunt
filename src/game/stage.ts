@@ -1,121 +1,263 @@
-import { GameState } from "./fs";
+import { Difficulty, GameState } from "../types";
+import { EGGS, hasBackup, hasEgg } from "./fs";
+
+// Egg = stage. Each stage is the hunt for one egg; reading the egg completes it.
+// Help comes in four levels: 0 is the world itself (files, eggs, messages),
+// then `hint` tiers 1–3: nudge, direction, exact commands.
+
+// A hint tier is plain text, or a function so the text can react to
+// sub-progress within the stage (e.g. "folder made, file missing").
+type HintText = string | ((s: GameState) => string);
 
 interface StageDef {
-  label: string;
-  description: string; // easy: full step-by-step guidance
-  partial: string;     // medium: objective without exact commands
-  hints: {
-    verbose: string; // shown at easy / medium difficulty
-    brief: string;   // shown at hard difficulty
-  };
-  gate: (s: GameState) => boolean;
+  name: string; // egg name, shown in `eggs` and the top bar
+  goal: string; // objective in story terms — never names a command
+  hints: [HintText, HintText, HintText];
+  gate: (s: GameState) => boolean; // true while the egg is not found yet
+  // Sub-progress inside the stage. A change resets hint escalation.
+  step?: (s: GameState) => string;
+  // The way to the egg is open but the egg is unread: announce once, and
+  // `hint` repeats the announcement instead of a tier.
+  opened?: (s: GameState) => boolean;
+  announce?: string;
 }
+
+const extracted = (s: GameState) => s.userCreated.some((u) => u.path === EGGS[5]);
+const tmpLeft = (s: GameState) =>
+  s.userCreated.filter((u) => /^\/home\/player\/secrets\/[^/]+\.tmp$/.test(u.path)).map((u) => u.path.split("/").pop()!);
+const junkLeft = (s: GameState) => tmpLeft(s).some((n) => !n.startsWith("."));
+const hiddenLeft = (s: GameState) => tmpLeft(s).some((n) => n.startsWith("."));
 
 export const STAGES: StageDef[] = [
   {
-    label: "1-offline",
-    description: "Stage 1 — OFFLINE: connect to Wi-Fi  (`wifi list`, then `wifi connect <SSID>`)",
-    partial: "Stage 1 — OFFLINE: you are not connected to the internet",
-    hints: {
-      verbose:
-        "Run `wifi list` to see available networks. Connect with `wifi connect EggHunt-5G` and enter the password when prompted.",
-      brief: "Try `wifi list` to discover networks you can join.",
-    },
-    gate: (s) => !s.wifiConnected,
+    name: "The Signal",
+    goal: "Hen's first egg waits in ~/documents, but this machine is offline.",
+    hints: [
+      "Read README.txt in your home folder. What keeps the first door shut?",
+      "You need a network. `help` lists a command for Wi-Fi, and Hen kept the password in a file in /etc.",
+      "`cat /etc/wifi.json`, then `wifi connect EggHunt-5G` and type the password from that file.",
+    ],
+    gate: (s) => !hasEgg(s, 1),
+    opened: (s) => s.wifiConnected,
+    announce: "🔓 ~/documents just unlocked.",
   },
   {
-    label: "2-create",
-    description:
-      "Stage 2 — CREATE: go home (`cd ~`), then `mkdir magic`, `cd magic`, `touch token.txt`  (the file must be named token.txt)",
-    partial: "Stage 2 — CREATE: build a special directory structure in your home folder",
-    hints: {
-      verbose:
-        "Go home: `cd ~`. Create a folder: `mkdir magic`. Enter it: `cd magic`. Leave a token file: `touch token.txt`. Check with `ls`.",
-      brief: "Create a directory called magic with a token file inside it, in /home/player.",
-    },
-    gate: (s) => !s.createdMagicDir || !s.createdTokenFile,
+    name: "The Builder",
+    goal: "Solve Hen's riddle in ~/documents.",
+    hints: [
+      "The riddle in ~/documents describes something to build. Read it word by word.",
+      (s) =>
+        s.createdMagicDir
+          ? "The magic folder exists. Now leave a token inside it — an empty file will do. `help` shows how."
+          : "Make a folder named magic in your home folder itself (~), not inside documents. `help` shows the command for making directories.",
+      (s) => (s.createdMagicDir ? "`touch ~/magic/token.txt`" : "`mkdir ~/magic`, then `touch ~/magic/token.txt`"),
+    ],
+    gate: (s) => !hasEgg(s, 2),
+    step: (s) => (s.createdMagicDir ? "token" : "dir"),
+    opened: (s) => s.createdMagicDir && s.createdTokenFile,
+    announce: "🔓 ~/secrets just unlocked.",
   },
   {
-    label: "3-edit",
-    description:
-      "Stage 3 — EDIT: `cd ~/secrets` then `edit secrets.cfg` and flip the flag to false",
-    partial: "Stage 3 — EDIT: a config file in ~/secrets controls the vault door",
-    hints: {
-      verbose:
-        "Run `cd ~/secrets`, then `edit secrets.cfg`. Change `path_to_vault_locked = true` to `false`. Save with Ctrl+S (or Cmd+S on Mac).",
-      brief: "Edit the config file in ~/secrets — flip one boolean flag.",
-    },
-    gate: (s) => !s.secretsUnlocked,
+    name: "The Janitor",
+    goal: "~/secrets is over quota. Clean it up.",
+    hints: [
+      "Read quota.txt in ~/secrets. Two jobs: some files go, one file moves.",
+      (s) =>
+        junkLeft(s)
+          ? "Remove the files ending in .tmp. One command takes several names — or the wildcard *.tmp."
+          : hiddenLeft(s)
+          ? "One .tmp file is hidden: its name starts with a dot, so plain listings and * skip it. `help` shows how to list everything."
+          : "The junk is gone. Now move report.txt into ~/documents. `help` lists a command for moving.",
+      (s) =>
+        [
+          junkLeft(s) && "`rm ~/secrets/*.tmp`",
+          hiddenLeft(s) && "`ls -a ~/secrets`",
+          hiddenLeft(s) && "`rm ~/secrets/.cache.tmp`",
+          s.userCreated.some((u) => u.path === "/home/player/secrets/report.txt") && "`mv ~/secrets/report.txt ~/documents/`",
+        ].filter(Boolean).join(", then "),
+    ],
+    gate: (s) => !hasEgg(s, 3),
+    step: (s) => (junkLeft(s) ? "junk" : hiddenLeft(s) ? "hidden" : "report"),
+    opened: (s) => s.userCreated.some((u) => u.path === EGGS[2]),
+    announce: "✨ Something new appeared in ~/secrets.",
   },
   {
-    label: "4-decode",
-    description:
-      "Stage 4 — DECODE: find and decode the base64 credential in ~/vault",
-    partial: "Stage 4 — DECODE: a file in ~/vault contains an encoded clue",
-    hints: {
-      verbose:
-        "Go to ~/vault: `cd ~/vault`. Look at sudo_clue.json. Decode the passphrase value: `base64 -d <encoded-string>`. Remember the result.",
-      brief: "Use `base64 -d` on the encoded passphrase inside sudo_clue.json in ~/vault.",
-    },
-    gate: (s) => !s.knowsSudoPassword,
+    name: "The Editor",
+    goal: "Open the vault. Its door is set in a config file in ~/secrets.",
+    hints: [
+      "secrets.cfg controls the vault door. Files can be changed, not just read — and this one has a house rule.",
+      (s) =>
+        hasBackup(s)
+          ? "Backup done. Open secrets.cfg in the editor and unlock the vault. editor-tips.txt explains saving."
+          : "First make a backup copy of secrets.cfg (`help` shows how to copy), then open it in the editor.",
+      (s) =>
+        (hasBackup(s) ? "" : "`cp ~/secrets/secrets.cfg ~/secrets/secrets.cfg.bak`, then ") +
+        "`edit ~/secrets/secrets.cfg`, change true to false, save with Ctrl+S (Cmd+S on Mac).",
+    ],
+    gate: (s) => !hasEgg(s, 4),
+    step: (s) => (hasBackup(s) ? "edit" : "backup"),
+    opened: (s) => s.secretsUnlocked,
+    announce: "🔓 ~/vault just unlocked.",
   },
   {
-    label: "5-sudo",
-    description:
-      "Stage 5 — SUDO: `sudo edit /etc/privilege.cfg` and flip allow_admin to true",
-    partial: "Stage 5 — SUDO: a system config file needs privileged access to edit",
-    hints: {
-      verbose:
-        "Run `sudo edit /etc/privilege.cfg`. Enter the decoded passphrase when prompted. Change `allow_admin=false` to `allow_admin=true`. Save.",
-      brief: "Use sudo to edit /etc/privilege.cfg — flip the allow_admin flag.",
-    },
-    gate: (s) => !s.adminUnlocked,
+    name: "The Administrator",
+    goal: "Become an administrator. The vault knows the password.",
+    hints: [
+      (s) =>
+        s.knowsSudoPassword
+          ? "You know the password. Who counts as an admin is written in a file in /etc."
+          : "Hen hid the admin password in the vault. Read every file there.",
+      (s) =>
+        s.knowsSudoPassword
+          ? "/etc/privilege.cfg decides who is admin, and only root may change it. how-to-sudo.txt explains how to act as root."
+          : "The passphrase in sudo_clue.json is base64 — an encoding anyone can reverse. `help` lists a decoder.",
+      (s) =>
+        s.knowsSudoPassword
+          ? "`sudo edit /etc/privilege.cfg`, enter the decoded password, set allow_admin=true, save."
+          : "`base64 -d c2VjcmV0LWVnZw==` — the output is the admin password.",
+    ],
+    gate: (s) => !hasEgg(s, 5),
+    step: (s) => (s.knowsSudoPassword ? "sudo" : "decode"),
+    opened: (s) => s.adminUnlocked,
+    announce: "🔓 ~/admin just unlocked.",
   },
   {
-    label: "6-root",
-    description:
-      "Stage 6 — ROOT: get into /root with sudo, unzip the archive, then cat the result",
-    partial: "Stage 6 — ROOT: the final egg is packed in /root",
-    hints: {
-      verbose:
-        "Run `sudo cd /root`. Then `unzip final_egg.zip` to extract the file. Finally `cat final_egg.txt`.",
-      brief: "Get into /root with elevated privileges, unzip the archive, then cat the result.",
-    },
-    gate: (s) => !s.finalEggFound,
+    name: "The Root",
+    goal: "Get into /root, the administrator's home.",
+    hints: [
+      "The next egg is in /root, the administrator's own home folder.",
+      (s) =>
+        s.rootEntered
+          ? "The egg is packed in an archive. `help` lists a command to unpack it."
+          : "A plain `cd /root` is refused the first time. Run the command itself as root.",
+      (s) => (s.rootEntered ? "`unzip egg6.zip`, then `cat egg6.txt`" : "`sudo cd /root`, then `unzip egg6.zip`"),
+    ],
+    gate: (s) => !hasEgg(s, 6),
+    step: (s) => (s.rootEntered ? "unzip" : "enter"),
+    opened: extracted,
+  },
+  {
+    name: "The Investigator",
+    goal: "Find out where the last egg went.",
+    hints: [
+      "Something wrote to the system logs in /var/log. Which log mentions an egg — and what did it do with it?",
+      "Don't read logs or backups file by file — search them. `grep <word> <file>` prints matching lines; -r searches a whole folder. The log gives you a word to search for.",
+      "`grep -r egg /var/log`, then `grep -r golden-yolk /var/backups`, then `cat` the path it shows.",
+    ],
+    gate: (s) => !hasEgg(s, 7),
   },
 ];
 
-export function activeStage(s: GameState): StageDef | null {
-  return STAGES.find((st) => st.gate(s)) ?? null;
+// Index of the egg being hunted (-1 when all are found).
+export function activeStageIndex(s: GameState): number {
+  return STAGES.findIndex((st) => st.gate(s));
 }
 
-export function stageOf(s: GameState): string {
-  const st = activeStage(s);
-  if (!st) return "🏆 COMPLETE — all eggs collected!";
-  const d = s.difficulty;
-  if (d === "impossible") return "";
-  if (d === "hard") return st.label;
-  if (d === "medium") return st.partial;
-  return st.description;
+export const doorOpen = (idx: number, s: GameState) => !!STAGES[idx]?.opened?.(s);
+
+// `eggs` / top bar: the objective for the egg being hunted, per difficulty.
+export function nextEggLine(s: GameState): string {
+  const idx = activeStageIndex(s);
+  if (idx < 0) return `🏆 All seven eggs found. You've hatched.\n${parLine(totalCommands(s))}`;
+  if (s.difficulty === "impossible") return "";
+  const st = STAGES[idx];
+  const head = `Next: #${idx + 1} ${st.name}`;
+  return s.difficulty === "hard" ? head : `${head} — ${st.goal}`;
 }
 
-export function stageLabel(s: GameState): string {
-  const st = activeStage(s);
-  return st ? st.label : "done";
+// Win screen score, learnGitBranching-style: commands typed vs. the README solution, per egg.
+export const HEN_WAY_PER_EGG = [3, 3, 5, 3, 3, 3, 3];
+export const HEN_WAY = HEN_WAY_PER_EGG.reduce((a, b) => a + b);
+export const totalCommands = (s: GameState) => s.stats.reduce((a, e) => a + e.commands, 0);
+export const parLine = (n: number) =>
+  `You used ${n} commands (Hen's way: ${HEN_WAY}).` + (n <= HEN_WAY ? " Hen is impressed." : "");
+
+// ponytail: idle gaps count at most 2 min, so a break (or a save resumed tomorrow) doesn't inflate time
+const IDLE_CAP = 120_000;
+
+// Counts a typed command, and the time since the previous one, for the egg being hunted.
+export const countCommand = (s: GameState, now = Date.now()): GameState => {
+  const idx = activeStageIndex(s);
+  if (idx < 0) return s;
+  const dt = s.lastAt ? Math.min(now - s.lastAt, IDLE_CAP) : 0;
+  const stats = s.stats.map((e, i) => (i === idx ? { commands: e.commands + 1, ms: e.ms + dt } : e));
+  return { ...s, stats, lastAt: now };
+};
+
+const clock = (ms: number) => {
+  const sec = Math.round(ms / 1000);
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+};
+
+// Printed after a restore from the menu or `load <string>`.
+export function restoredLines(s: GameState): [string, string][] {
+  const done = activeStageIndex(s) < 0;
+  return [
+    [`Save restored${s.playerName ? ` — welcome back, ${s.playerName}` : ""}. 🥚 ${s.eggsFound.length}/${STAGES.length}`, "text-emerald-300"],
+    [done ? "All eggs found. `eggs` shows your scorecard." : "`eggs` shows where you left off.", "text-stone-400"],
+  ];
 }
 
-// Returns a hint string for the given stage (or the active stage if no index
-// provided), one level easier than the player's difficulty.
-// Returns null if hints are forbidden (impossible) or not needed (all done).
+// The win table: time and commands per egg, against Hen's way.
+export function statsLines(s: GameState): string[] {
+  const row = (name: string, time: string, n: number | string, hen: number | string) =>
+    `${name.padEnd(24)}${time.padStart(7)}${String(n).padStart(10)}${String(hen).padStart(7)}`;
+  const rule = "─".repeat(48);
+  return [
+    rule,
+    row("egg", "time", "commands", "Hen"),
+    ...STAGES.map((st, i) => row(`#${i + 1} ${st.name}`, clock(s.stats[i].ms), s.stats[i].commands, HEN_WAY_PER_EGG[i])),
+    row("total", clock(s.stats.reduce((a, e) => a + e.ms, 0)), totalCommands(s), HEN_WAY),
+    rule,
+  ];
+}
+
+// --- Hint escalation --------------------------------------------------------
+// Repeated asks climb tiers 1→3, capped by difficulty. The counter belongs to
+// a situation (stage + step), so sub-progress starts over at the nudge;
+// COOLDOWN commands without asking drop it one tier. Difficulty change and
+// load reset it entirely.
+const TIER_CAP: Record<Difficulty, number> = { easy: 2, medium: 1, hard: 0, impossible: -1 };
+const EXACT = 2; // tier index of the exact-commands hint
+const COOLDOWN = 8; // ponytail: fixed, tune after playtest
+
+function hintKey(s: GameState, idx: number): string {
+  return `${idx}:${STAGES[idx].step?.(s) ?? ""}:${doorOpen(idx, s) ? "open" : ""}`;
+}
+
+function asks(s: GameState, idx: number): number {
+  return s.hint.key === hintKey(s, idx) ? s.hint.asks : 0;
+}
+
+// The hint for the given stage (or the active one) at the current tier,
+// prefixed "hint n/max:". Null when forbidden or all eggs are found.
 export function stageHint(s: GameState, stageIndex?: number): string | null {
-  const d = s.difficulty;
-  if (d === "impossible") return null;
-  let st: StageDef | null;
-  if (stageIndex !== undefined) {
-    st = STAGES[stageIndex] ?? null;
-  } else {
-    st = activeStage(s);
-  }
-  if (!st) return null;
-  return d === "hard" ? st.hints.brief : st.hints.verbose;
+  const cap = TIER_CAP[s.difficulty];
+  const idx = stageIndex ?? activeStageIndex(s);
+  const st = STAGES[idx];
+  if (cap < 0 || !st) return null;
+  if (doorOpen(idx, s) && st.gate(s)) return st.announce ?? "The way is open — find the egg.";
+  // Before the exact answer, ask once more (learnGitBranching's "are you sure?").
+  const n = asks(s, idx);
+  if (cap >= EXACT && n === EXACT) return "The next hint is the exact answer. Type `hint` again if you want it.";
+  const tier = Math.min(cap >= EXACT && n > EXACT ? n - 1 : n, cap);
+  const h = st.hints[tier];
+  return `hint ${tier + 1}/${cap + 1}: ${typeof h === "function" ? h(s) : h}`;
+}
+
+// True once asking again cannot give more (used for the difficulty nudge).
+export function hintExhausted(s: GameState, idx: number): boolean {
+  const cap = TIER_CAP[s.difficulty];
+  return asks(s, idx) > cap + (cap >= EXACT ? 1 : 0);
+}
+
+export function recordHint(s: GameState, idx: number): GameState {
+  return { ...s, hint: { key: hintKey(s, idx), asks: asks(s, idx) + 1, since: 0 } };
+}
+
+// Called once per non-hint command: drives the cooldown.
+export function tickHint(s: GameState): GameState {
+  const since = s.hint.since + 1;
+  if (since >= COOLDOWN && s.hint.asks > 0) return { ...s, hint: { ...s.hint, asks: s.hint.asks - 1, since: 0 } };
+  return { ...s, hint: { ...s.hint, since } };
 }

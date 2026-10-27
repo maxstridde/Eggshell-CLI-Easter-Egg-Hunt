@@ -1,71 +1,13 @@
-// Virtual filesystem + game state for Eggshell
+// Virtual filesystem for Eggshell
 // Nodes are either directories or files.
 // Locked directories cannot be `cd`'d into until a predicate returns true.
 
-export type Difficulty = "easy" | "medium" | "hard" | "impossible";
-export type TerminalUser = "player" | "admin" | "other";
+import { FsNode, GameState, TerminalUser } from "../types";
 
-export type FsNode =
-  | {
-      kind: "dir";
-      name: string;
-      children: FsNode[];
-      // If set, this directory shows as [locked] in `ls` and cannot be cd'd into.
-      locked?: (state: GameState) => boolean;
-      hint?: string;
-    }
-  | {
-      kind: "file";
-      name: string;
-      // Content shown by `cat`.
-      content: string;
-      // If this file is "config-like" and editable by `edit`.
-      editable?: boolean;
-      // Runs after an edit; returns error string or null, plus optional state patch.
-      onEdit?: (newContent: string) => { error: string | null; patch?: Partial<GameState> };
-    };
-
-export interface GameState {
-  wifiConnected: boolean;
-  wifiSSID: string;
-  createdMagicDir: boolean;
-  createdTokenFile: boolean;
-  secretsUnlocked: boolean; // via editing secrets.cfg
-  knowsSudoPassword: boolean; // decoded from base64 clue
-  adminUnlocked: boolean; // via editing /etc/privilege.cfg
-  rootEntered: boolean; // set after first successful sudo cd /root
-  eggsFound: string[]; // paths of discovered eggs
-  finalEggFound: boolean;
-  // raw file overrides from edits
-  edits: Record<string, string>;
-  // user-created files / dirs (relative to /home/player)
-  userCreated: { type: "dir" | "file"; path: string; content?: string }[];
-  sudoTries: number;
-  difficulty: Difficulty;
-  terminalUser: TerminalUser; // set by default_user in /etc/privilege.cfg
-  visited: string[]; // directories the player has ls-ed or cd-ed into
-  mapVisible: boolean; // medium/hard: whether map panel is toggled on
+// Resolves a file node's content, calling it if it's a difficulty/progress-aware function.
+export function fileContent(node: FsNode & { kind: "file" }, state: GameState): string {
+  return typeof node.content === "function" ? node.content(state) : node.content;
 }
-
-export const initialState: GameState = {
-  wifiConnected: false,
-  wifiSSID: "",
-  createdMagicDir: false,
-  createdTokenFile: false,
-  secretsUnlocked: false,
-  knowsSudoPassword: false,
-  adminUnlocked: false,
-  rootEntered: false,
-  eggsFound: [],
-  finalEggFound: false,
-  edits: {},
-  userCreated: [],
-  sudoTries: 0,
-  difficulty: "easy",
-  terminalUser: "player",
-  visited: ["/home/player"],
-  mapVisible: false,
-};
 
 // --- Helpers for building the tree with less repetition -----------------
 
@@ -77,9 +19,86 @@ const dir = (
 
 const file = (
   name: string,
-  content: string,
+  content: string | ((s: GameState) => string),
   opts: { editable?: boolean; onEdit?: (c: string) => { error: string | null; patch?: Partial<GameState> } } = {}
 ): FsNode => ({ kind: "file", name, content, ...opts });
+
+// Clue-text pattern: easy = base + explicit extra pointer, medium = base,
+// hard/impossible = base with the hand-holding lines stripped.
+const isEasy = (s: GameState) => s.difficulty === "easy";
+const isHardOrWorse = (s: GameState) => s.difficulty === "hard" || s.difficulty === "impossible";
+
+// Story dates follow the player's clock, so the machine never looks abandoned:
+// Hen's logs are from yesterday, the retirement is 3 days out (survives a
+// midnight mid-play). Computed at read time — nothing date-like is saved.
+const DAY = 86_400_000;
+const dayOf = (offset: number) => new Date(Date.now() + offset * DAY);
+const pad = (n: number) => String(n).padStart(2, "0");
+const sysDate = (d: Date) => `${d.toLocaleDateString("en-US", { month: "short" })} ${String(d.getDate()).padStart(2, " ")}`;
+const sysDay = (offset: number) => sysDate(dayOf(offset));
+const isoDay = (offset: number) => {
+  const d = dayOf(offset);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+// syslog stamp `minutes` from now — date and time from one Date, so midnight can't split them
+const stamp = (minutes: number) => {
+  const d = new Date(Date.now() + minutes * 60_000);
+  return `${sysDate(d)} ${d.toTimeString().slice(0, 8)}`;
+};
+export const retireDate = () =>
+  dayOf(3).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+export const lastLogin = () => `${sysDay(-1)} 08:31`;
+
+// Egg files in stage order. Reading one (cat) completes its stage.
+export const EGGS = [
+  "/home/player/documents/egg1.txt",
+  "/home/player/secrets/egg2.txt",
+  "/home/player/secrets/egg3.txt", // created by tidying ~/secrets (userCreated)
+  "/home/player/vault/egg4.txt",
+  "/home/player/admin/egg5.txt",
+  "/root/egg6.txt", // created by unzip (userCreated)
+  "/var/backups/.attic/2019/misc/egg7.txt", // hidden, three folders deep: found by grep, not by looking
+];
+
+export const hasEgg = (s: GameState, n: number) => s.eggsFound.includes(EGGS[n - 1]);
+// True once eggs 1..n are all read — doors open only in stage order.
+const upTo = (s: GameState, n: number) => EGGS.slice(0, n).every((e) => s.eggsFound.includes(e));
+
+// The original secrets.cfg; any player file with exactly this content counts as a backup.
+const SECRETS_CFG =
+  "# secrets.cfg — access control for protected directories\n" +
+  "# house rule: make a backup copy of this file before you change it\n" +
+  "\n" +
+  "path_to_vault_locked = true\n";
+export const hasBackup = (s: GameState) =>
+  s.userCreated.some((u) => u.type === "file" && u.content === SECRETS_CFG);
+
+// Every egg: what you did, something worth knowing, Hen's pointer to the next.
+// Egg texts name actions in full words (remove, move, copy), never command names
+// the player hasn't been told about — `help` explains the abbreviations.
+export const TIDY_EGG =
+  "🥚 EGG #3 of 7 — The Janitor\n" +
+  "You removed the junk and moved the report where it belongs.\n" +
+  "\n" +
+  "Careful out there: a real shell has no trash can. What you remove is gone.\n" +
+  "Names starting with a dot are hidden, not secret: plain ls and * skip them,\n" +
+  "ls -a shows them. Your real home is full of them (.bashrc, .ssh/).\n" +
+  "Renaming is just moving to a new name — the same command does both.\n" +
+  "Real disks fill up exactly like this: caches, temp files, half-done downloads.\n" +
+  "\n" +
+  "Next: the vault door is set in secrets.cfg. Mind my house rule.  — Hen\n";
+
+export const ROOT_EGG =
+  "🥚 EGG #6 of 7 — The Root\n" +
+  "You entered the administrator's home and unpacked an archive.\n" +
+  "\n" +
+  "/root is kept apart from /home on purpose: the admin's files stay\n" +
+  "safe even when a user's home is a mess.\n" +
+  "Archives pack many files into one. .zip is everywhere; on Linux you'll\n" +
+  "often meet .tar.gz instead (unpacked with: tar -xzf file.tar.gz).\n" +
+  "\n" +
+  "Next: something just wrote to the system logs, and /var is open now.\n" +
+  "Nobody reads logs line by line.  — Hen\n";
 
 // --- The actual filesystem ----------------------------------------------
 
@@ -92,7 +111,7 @@ export function buildFilesystem(): FsNode {
       ),
       file(
         "issue",
-        "EggshellOS 1.0 — Welcome, player. Type `help` to get started.\n"
+        "EggshellOS 1.0 — eggshell.local\n"
       ),
       dir("cron.d", [
         file(
@@ -118,11 +137,8 @@ export function buildFilesystem(): FsNode {
       ),
       file(
         "privilege.cfg",
-        "# /etc/privilege.cfg — system privilege configuration\n" +
-          "# This file requires elevated access to modify.\n" +
-          "#\n" +
-          "# Settings here control which accounts hold administrative rights\n" +
-          "# on this machine. Incorrect values may have unexpected side effects.\n" +
+        "# /etc/privilege.cfg — who holds administrative rights on this machine\n" +
+          "# Only root may change this file.\n" +
           "\n" +
           "allow_admin=false\n" +
           "default_user=player    # default is 'player'; also accepts 'admin'\n",
@@ -143,54 +159,53 @@ export function buildFilesystem(): FsNode {
     ]),
     dir("home", [
       dir("player", [
-        file(
-          "README.txt",
-          "=== WELCOME TO EGGSHELL ===\n" +
+        file("README.txt", (s) =>
+          "Hello, whoever you are.\n" +
             "\n" +
-            "You are sitting at a fresh terminal. Your mission:\n" +
-            "find the 5 hidden easter eggs scattered through this system.\n" +
+            "I'm Hen, the admin of this machine. I retire on " + retireDate() + ".\n" +
+            "Before I go, I've hidden seven eggs on this system. Each one\n" +
+            "holds something I think is worth knowing. Find them all and\n" +
+            "the machine is yours.\n" +
             "\n" +
-            "Useful commands:\n" +
-            "  help        — show the command list\n" +
-            "  ls          — list files in the current directory\n" +
-            "  cat <file>  — print a file\n" +
-            "  pwd         — print current path\n" +
+            "The first egg is in ~/documents. That door stays shut\n" +
+            "while this machine is offline.\n" +
+            (isHardOrWorse(s) ? "" : "I always keep the network settings in /etc.\n") +
+            (isEasy(s) ? "`help` lists the commands you can use.\n" : "") +
             "\n" +
-            "Something is preventing you from exploring further.\n" +
-            "The system keeps network information in /etc.\n"
+            "— Hen\n"
         ),
-        file(
-          "notes.txt",
-          "Player's notebook:\n" +
-            "- First egg is said to be in ~/documents/\n" +
-            "  But that directory is LOCKED.\n" +
-            "  You need to be connected to a network to enter.\n" +
-            "- Somewhere in this home folder, a special directory must be created.\n" +
-            "  And something left inside it — like proof you were there.\n" +
-            "  Only then will a certain door open...\n"
+        file("notes.txt", (s) =>
+          "Sticky notes on Hen's monitor:\n" +
+            "- ~ is short for your home folder: /home/player\n" +
+            "- .. means one folder up. `cd ..` takes you there.\n" +
+            "- in `ls`, a name ending in / is a folder.\n" +
+            (isHardOrWorse(s) ? "" : "- wifi password? wrote it down somewhere in /etc\n")
         ),
         dir("documents", [
           file(
             "egg1.txt",
-            "🥚 EGG #1 FOUND — 'The Starter' 🥚\n" +
-              "You connected to a network and found your way here.\n" +
+            "🥚 EGG #1 of 7 — The Signal\n" +
+              "You read a password out of a config file and used it to get online.\n" +
               "\n" +
-              "Skills demonstrated:\n" +
-              "  wifi list / wifi connect — network management\n" +
-              "  ls                       — list directory contents\n" +
-              "  cd                       — navigate the filesystem\n" +
+              "A confession: `wifi` exists only here on EggshellOS.\n" +
+              "Real systems each have their own words for it:\n" +
+              "  Linux    nmcli device wifi connect <name> password <password>\n" +
+              "  macOS    networksetup -setairportnetwork en0 <name> <password>\n" +
+              "  Windows  netsh wlan connect name=<name>\n" +
+              "Different words, same idea. Commands differ; concepts travel.\n" +
+              "And passwords lying around in plain text files? Happens more than it should.\n" +
               "\n" +
-              "On real machines, /etc/network/interfaces or NetworkManager\n" +
-              "handle this. On macOS: System Settings → Wi-Fi.\n" +
-              "Config files store secrets. Now you know.\n"
+              "Next: I left a riddle right here in documents/.  — Hen\n"
           ),
-          file(
-            "clue2.riddle",
-            "Riddle #2:\n" +
-              "  'Deep in the player's home there is a hollow.\n" +
-              "   Fill it with a folder called magic,\n" +
-              "   and inside that folder, leave a token.\n" +
-              "   Only then will the secrets room open its gates.'\n"
+          file("clue2.riddle", (s) =>
+            "A riddle from Hen:\n" +
+              "\n" +
+              "  Not in here — in your home itself, in ~,\n" +
+              "  there is room for something new.\n" +
+              "  Make it magic — a folder by that very name.\n" +
+              "  Then leave a token inside, token.txt,\n" +
+              "  to prove you were there. My secrets will open to you.\n" +
+              (isEasy(s) ? "\n(A folder you make; a file you leave. `help` knows how to do both.)\n" : "")
           ),
         ], {
           locked: (s) => !s.wifiConnected,
@@ -198,10 +213,7 @@ export function buildFilesystem(): FsNode {
         dir("secrets", [
           file(
             "secrets.cfg",
-            "# secrets.cfg — access control for protected directories\n" +
-              "\n" +
-              "path_to_vault_locked = true\n" +
-              "debug_mode = off\n",
+            SECRETS_CFG,
             {
               editable: true,
               onEdit: (c) => ({
@@ -212,103 +224,242 @@ export function buildFilesystem(): FsNode {
           ),
           file(
             "egg2.txt",
-            "🥚 EGG #2 FOUND — 'The Builder' 🥚\n" +
-              "You created a directory and a file from scratch.\n" +
+            "🥚 EGG #2 of 7 — The Builder\n" +
+              "You made a folder and a file out of nothing.\n" +
               "\n" +
-              "Skills demonstrated:\n" +
-              "  mkdir  — create a directory\n" +
-              "  touch  — create an empty file\n" +
+              "The command for files was really built to update a file's timestamp —\n" +
+              "to \"touch\" it. Creating an empty file when none exists was a side effect,\n" +
+              "and now everyone uses it for exactly that.\n" +
+              "Every project on every computer started like this: one folder, one file.\n" +
               "\n" +
-              "Every project starts this way.\n" +
-              "Filesystems are built one node at a time.\n"
+              "Next: sorry about the mess in here. quota.txt says what needs doing.  — Hen\n"
           ),
           file(
             "editor-tips.txt",
-            "=== Using `edit` ===\n" +
-              "`edit <filename>` opens a tiny built-in text editor.\n" +
-              "  - Change lines, then press [SAVE] to write.\n" +
-              "  - Press [CANCEL] to quit without saving.\n" +
-              "Only `.cfg`, `.txt`, `.md`, and `.riddle` files can be edited here.\n"
+            "=== The editor ===\n" +
+              "`edit <file>` opens a small text editor. (nano and vim work too.)\n" +
+              "  - change the text, then save with Ctrl+S (Cmd+S on Mac)\n" +
+              "  - Esc leaves without saving\n" +
+              "\n" +
+              "House rule: back up before you change. A copy named <file>.bak\n" +
+              "is the custom — if the edit goes wrong, the original is safe.\n"
           ),
+          file("quota.txt", (s) => {
+            if (s.userCreated.some((u) => u.path === EGGS[2])) return "~/secrets is within quota. Thank you!  — Hen\n";
+            const tmp = s.userCreated.filter((u) => /^\/home\/player\/secrets\/[^/]+\.tmp$/.test(u.path));
+            const onlyHidden = tmp.length > 0 && tmp.every((u) => u.path.split("/").pop()!.startsWith("."));
+            const reportLeft = s.userCreated.some((u) => u.path === "/home/player/secrets/report.txt");
+            if (onlyHidden)
+              return "!! ~/secrets is still over quota !!\n" +
+                "- something temporary is still in here. Not every file shows up in a plain listing.\n" +
+                (reportLeft ? "- report.txt is a document — it belongs with the other documents\n" : "") +
+                (isEasy(s) ? "\n(Names starting with a dot are hidden. `help` shows how to list them too.)\n" : "");
+            return "!! ~/secrets is over quota !!\n" +
+              "- the temporary files (*.tmp) can go — every one of them\n" +
+              "- report.txt is a document — it belongs with the other documents\n" +
+              (isEasy(s)
+                ? "\n(`help` lists commands to remove and to move files.\n" +
+                  " * is a wildcard: *.tmp means every name ending in .tmp)\n"
+                : "");
+          }),
         ], {
-          locked: (s) => !(s.createdMagicDir && s.createdTokenFile),
+          locked: (s) => !(s.createdMagicDir && s.createdTokenFile) || !upTo(s, 1),
         }),
         dir("vault", [
           file(
-            "egg3.txt",
-            "🥚 EGG #3 FOUND — 'The Editor' 🥚\n" +
-              "You opened a config file and changed a value.\n" +
+            "egg4.txt",
+            "🥚 EGG #4 of 7 — The Editor\n" +
+              "You made a backup, changed one line, and a door opened.\n" +
               "\n" +
-              "Skills demonstrated:\n" +
-              "  edit  — modify a text file in the built-in editor\n" +
+              "That's how real systems are run: settings live in plain text files\n" +
+              "(~/.ssh/config, /etc/hosts), and one changed line changes behaviour.\n" +
+              "Real editors: nano is the friendly one; vim is powerful and famous\n" +
+              "for being hard to quit. (Stuck in vim? Press Esc, type :q! and Enter.)\n" +
               "\n" +
-              "Real systems work exactly like this:\n" +
-              "/etc/nginx/nginx.conf, ~/.ssh/config, /etc/fstab —\n" +
-              "a line changed, a service restarted.\n" +
-              "Config files are the API of the system.\n"
+              "Next: the admin password is in this vault. Not in plain text — I learned that much.  — Hen\n"
           ),
           file(
             "sudo_clue.json",
-            "# .b64 — structured credential token\n" +
-              "# field values that are encoded must be decoded before use\n" +
-              "# this file can be decoded in full, but only one field matters\n" +
+            () =>
+            "# structured credential token\n" +
+              "# encoded field values must be decoded before use\n" +
               "\n" +
               "{\n" +
               "  \"token_type\":  \"system-credential\",\n" +
-              "  \"issued_by\":   \"eggshell-vault\",\n" +
-              "  \"expires\":     \"never\",\n" +
-              "  \"note\":        \"you can read the metadata just fine — clever, right?\",\n" +
+              "  \"issued_by\":   \"hen\",\n" +
+              "  \"expires\":     \"" + isoDay(3) + "\",\n" +
               "  \"passphrase\":  \"c2VjcmV0LWVnZw==\"\n" +
               "}\n"
           ),
-          file(
-            "how-to-sudo.txt",
+          file("how-to-sudo.txt", (s) =>
             "=== sudo ===\n" +
-              "`sudo` runs a single command as the administrator (root).\n" +
-              "Syntax:  sudo <command> <args...>\n" +
-              "\n" +
-              "You will be asked for the admin password.\n" +
-              "The credential is stored somewhere in this vault.\n" +
-              "Look around — encoded things can be decoded.\n"
+              "sudo means \"superuser do\": run one command as the administrator (root).\n" +
+              "  sudo <command> <args...>\n" +
+              "You'll be asked for the admin password.\n" +
+              (isHardOrWorse(s)
+                ? ""
+                : "\n" +
+                  "The password isn't stored in plain text. But encoded isn't encrypted.\n" +
+                  "Who counts as an admin is written in /etc — and only root may change that.\n") +
+              (isEasy(s) ? "(That file is /etc/privilege.cfg. `help` lists a decoder.)\n" : "")
           ),
         ], {
-          locked: (s) => !s.secretsUnlocked,
+          locked: (s) => !s.secretsUnlocked || !upTo(s, 3),
         }),
         dir("admin", [
           file(
-            "egg4.txt",
-            "🥚 EGG #4 FOUND — 'The Administrator' 🥚\n" +
-              "You ran a command as root and changed a system-level config.\n" +
+            "egg5.txt",
+            "🥚 EGG #5 of 7 — The Administrator\n" +
+              "You decoded a password and used it to make yourself an admin.\n" +
               "\n" +
-              "Skills demonstrated:\n" +
-              "  sudo  — execute as administrator\n" +
-              "  edit  — modify a protected file\n" +
+              "base64 is an encoding, not encryption: anyone can reverse it, no key needed.\n" +
+              "It exists to carry any data as plain letters — through email, URLs, configs.\n" +
+              "sudo has a Windows twin: right-click → \"Run as administrator\".\n" +
+              "Use it sparingly. Root can break anything, and never asks twice.\n" +
               "\n" +
-              "In real systems, sudo gives temporary root access.\n" +
-              "Every Linux server relies on this — from installing packages\n" +
-              "to editing /etc/sudoers itself.\n" +
-              "You now understand the basics of privilege escalation.\n"
-          ),
-          file(
-            "admin-note.txt",
-            "You are in /admin — a directory that required editing /etc/privilege.cfg.\n" +
-              "Real-world equivalents: /etc/sudoers, group policies, ACLs.\n" +
-              "\n" +
-              "Admin access here grants elevated capabilities.\n" +
-              "The root of this machine may now be within reach.\n"
+              "Next: /root, my own home, is open to admins now. The first time, ask as root.  — Hen\n"
           ),
         ], {
-          locked: (s) => !s.adminUnlocked,
+          locked: (s) => !s.adminUnlocked || !upTo(s, 4),
         }),
       ]),
     ]),
     dir("root", [
       file(
-        "final_egg.zip",
+        "egg6.zip",
         "[binary archive]\n"
       ),
     ], {
-      locked: (s) => !s.adminUnlocked,
+      locked: (s) => !s.adminUnlocked || !upTo(s, 5),
+    }),
+    dir("var", [
+      dir("log", [
+        file(
+          "auth.log",
+          () =>
+          sysDay(-1) + " 06:25:01 eggshell CRON[882]: pam_unix(cron:session): session opened for user root\n" +
+            sysDay(-1) + " 06:25:03 eggshell CRON[882]: pam_unix(cron:session): session closed for user root\n" +
+            sysDay(-1) + " 07:14:22 eggshell sshd[1203]: Failed password for invalid user admin from 10.0.0.5 port 51122\n" +
+            sysDay(-1) + " 07:14:25 eggshell sshd[1203]: Connection closed by invalid user admin 10.0.0.5 port 51122\n" +
+            sysDay(-1) + " 08:02:11 eggshell sudo:   hen : TTY=pts/0 ; PWD=/root ; COMMAND=/usr/bin/nano /etc/privilege.cfg\n" +
+            sysDay(-1) + " 08:02:11 eggshell sudo: pam_unix(sudo:session): session opened for user root\n" +
+            sysDay(-1) + " 08:02:14 eggshell sudo: pam_unix(sudo:session): session closed for user root\n" +
+            sysDay(-1) + " 08:31:47 eggshell sshd[1490]: Accepted publickey for hen from 10.0.0.9 port 40018\n"
+        ),
+        file(
+          "syslog",
+          () =>
+          sysDay(-1) + " 06:25:01 eggshell rsyslogd: [origin software=\"rsyslogd\"] rsyslogd was HUPed\n" +
+            sysDay(-1) + " 06:30:00 eggshell systemd[1]: Starting Daily apt download activities...\n" +
+            sysDay(-1) + " 06:30:02 eggshell systemd[1]: apt-daily.service: Succeeded.\n" +
+            sysDay(-1) + " 06:47:19 eggshell kernel: [ 8123.442] usb 1-2: new high-speed USB device number 4\n" +
+            sysDay(-1) + " 07:00:00 eggshell systemd[1]: logrotate.service: Succeeded.\n" +
+            sysDay(-1) + " 07:12:38 eggshell NetworkManager[610]: <info> device (wlan0): state change: activated\n" +
+            sysDay(-1) + " 08:00:00 eggshell systemd[1]: Starting Cleanup of Temporary Directories...\n" +
+            sysDay(-1) + " 08:00:01 eggshell systemd[1]: systemd-tmpfiles-clean.service: Succeeded.\n" +
+            sysDay(-1) + " 08:17:44 eggshell kernel: [13544.108] audit: type=1400 apparmor=\"ALLOWED\" profile=\"lsb_release\"\n" +
+            sysDay(-1) + " 08:30:00 eggshell systemd[1]: Starting Rotate log files...\n" +
+            sysDay(-1) + " 08:30:01 eggshell systemd[1]: logrotate.service: Succeeded.\n" +
+            // ponytail: easterd ran "just now" (read time), so the time moves on re-read
+            `${stamp(-2)} eggshell easterd[312]: sweep complete — one asset still unaccounted for\n` +
+            `${stamp(-1)} eggshell easterd[312]: relocating egg #7 into /var/backups — deep down, where nobody looks\n` +
+            `${stamp(-1)} eggshell easterd[312]: egg #7 labelled golden-yolk. nobody reads the logs anyway.\n`
+        ),
+        file(
+          "dpkg.log",
+          () =>
+          isoDay(-2) + " 22:10:03 startup archives unpack\n" +
+            isoDay(-2) + " 22:10:05 install curl:amd64 <none> 7.88.1-10\n" +
+            isoDay(-2) + " 22:10:06 status installed curl:amd64 7.88.1-10\n" +
+            isoDay(-2) + " 22:10:09 install jq:amd64 <none> 1.6-2.1\n" +
+            isoDay(-2) + " 22:10:10 status installed jq:amd64 1.6-2.1\n" +
+            isoDay(-2) + " 22:11:31 install tree:amd64 <none> 2.1.0-1\n" +
+            isoDay(-2) + " 22:11:32 status installed tree:amd64 2.1.0-1\n"
+        ),
+      ]),
+      // A mess on purpose: decoys named like eggs, so only a search finds the real one.
+      dir("backups", [
+        file("egg.md", "# egg\nTemplate for egg texts. Not an egg.\n"),
+        file("egg2.txt", "Backup of egg #2. You already have this one.\n"),
+        file("egg7_v1.txt", "egg #7, first draft. Too easy to find. Moved it.  — Hen\n"),
+        file("egg7_FINAL.txt", "egg #7, final version.\nNot this one either. FINAL never means final.\n"),
+        file("egg7_FINAL_v2.txt", "(empty draft)\n"),
+        file("eggs.tar.gz.part", "[incomplete archive — download interrupted]\n"),
+        file("passwd.bak", "root:x:0:0:root:/root:/bin/bash\nhen:x:1000:1000:Hen:/home/hen:/bin/bash\n"),
+        dir("old-configs", [
+          file("hosts.1998", "127.0.0.1  localhost\n10.0.0.1   rooster-box\n"),
+          file("rooster-1998.txt",
+            "Note from Rooster, admin before Hen, 1998:\n" +
+              "I hid one egg on this box too. Never found it again.\n" +
+              "If you ever do: I still owe Hen 5 marks.\n"),
+        ]),
+        dir("home-hen", [
+          file("grocery.txt", "- milk\n- bread\n- eggs (ironic)\n- new admin (done)\n"),
+          file("todo.txt", "- write README for the new admin\n- hide 7 eggs\n- retire\n"),
+        ]),
+        dir("photos", [
+          file("chicken.txt",
+            "   \\\\\n" +
+              "   (o>\n" +
+              "\\\\_//)\n" +
+              " \\_/_)\n" +
+              "  _|_\n" +
+              "\n" +
+              "The chicken came first. This file is older than every egg.\n"),
+        ]),
+        dir(".attic", [
+          dir("2017", [
+            dir("drafts", [
+              file("egg7_draft.txt", "egg #7 — draft. Hen crossed it all out.\n"),
+              file("riddle-ideas.txt", "- what has a shell but no beach?\n- why did the egg cross the road?\n"),
+            ]),
+          ]),
+          dir("old-home", [
+            dir("trash", [
+              file("egg7.txt.old", "This is where egg #7 used to be. It moved.\n"),
+              file("nest.bak", "[binary backup — unreadable]\n"),
+            ]),
+          ]),
+          dir("2019", [
+            dir("receipts", [
+              file("feed-store.txt", "Feed store, March 2019\n  layer pellets   12.40\n  oyster grit      3.10\n"),
+              file("hardware.txt", "1x nesting box, 1x heat lamp. Keep the receipt.\n"),
+            ]),
+            dir("photos", [
+              file("coop-roof.txt", "[photo] the coop roof after the storm\n"),
+              file("sunrise.txt", "[photo] 5:40 am, the rooster was early again\n"),
+            ]),
+            dir("misc", [
+              file("passwords-old.txt", "All changed since. Nice try.  — Hen\n"),
+              file("todo-2019.txt", "- fix the fence\n- teach the new admin grep\n"),
+              file(
+          "egg7.txt",
+          "🥚 EGG #7 of 7 — The Investigator\n" +
+            "label: golden-yolk\n" +
+            "You didn't read the logs line by line, and you didn't dig through the mess. You searched.\n" +
+            "\n" +
+            "grep stands for \"global regular expression print\": it prints every\n" +
+            "line that matches. The same move finds real problems:\n" +
+            "  grep error app.log                    lines containing \"error\"\n" +
+            "  grep -r \"Failed password\" /var/log    search a whole folder\n" +
+            "It found this egg in a hidden folder, three levels down. Searching beats looking.\n" +
+            "\n" +
+            "That's all seven. You've hatched — the shell is yours now.\n" +
+            "\n" +
+            "Try a real terminal next:\n" +
+            "  macOS    Applications → Utilities → Terminal\n" +
+            "  Windows  install WSL, then open Ubuntu\n" +
+            "  Linux    you're already home\n" +
+            "Almost everything you typed here works there unchanged — except wifi and edit.\n" +
+            "\n" +
+            "Thank you for playing.  — Hen\n"
+              ),
+            ]),
+          ]),
+        ]),
+      ]),
+    ], {
+      locked: (s) => !upTo(s, 6),
     }),
   ]);
 }
@@ -334,6 +485,22 @@ export function resolvePath(cwd: string, target: string): string {
   return "/" + parts.join("/");
 }
 
+// First locked directory on the way to `path` (the path itself included),
+// or null. Every command checks this, so a lock covers everything below it.
+export function lockedAt(root: FsNode, path: string, state: GameState): string | null {
+  let cur = root;
+  let curPath = "";
+  for (const p of path.split("/").filter(Boolean)) {
+    if (cur.kind !== "dir") return null;
+    const next = cur.children.find((c) => c.name === p);
+    if (!next) return null;
+    curPath += "/" + p;
+    if (next.kind === "dir" && next.locked?.(state)) return curPath;
+    cur = next;
+  }
+  return null;
+}
+
 export function findNode(root: FsNode, path: string): FsNode | null {
   if (path === "/" || path === "") return root;
   const parts = path.split("/").filter(Boolean);
@@ -345,9 +512,4 @@ export function findNode(root: FsNode, path: string): FsNode | null {
     cur = next;
   }
   return cur;
-}
-
-export function pathOfChild(parentPath: string, childName: string): string {
-  if (parentPath === "/") return "/" + childName;
-  return parentPath + "/" + childName;
 }

@@ -408,6 +408,18 @@ export function buildFilesystem(): FsNode {
               "The chicken came first. This file is older than every egg.\n"),
         ]),
         dir(".attic", [
+          dir("2017", [
+            dir("drafts", [
+              file("egg7_draft.txt", "egg #7 — draft. Hen crossed it all out.\n"),
+              file("riddle-ideas.txt", "- what has a shell but no beach?\n- why did the egg cross the road?\n"),
+            ]),
+          ]),
+          dir("old-home", [
+            dir("trash", [
+              file("egg7.txt.old", "This is where egg #7 used to be. It moved.\n"),
+              file("nest.bak", "[binary backup — unreadable]\n"),
+            ]),
+          ]),
           dir("2019", [
             dir("misc", [
               file(
@@ -420,7 +432,7 @@ export function buildFilesystem(): FsNode {
             "line that matches. The same move finds real problems:\n" +
             "  grep error app.log                    lines containing \"error\"\n" +
             "  grep -r \"Failed password\" /var/log    search a whole folder\n" +
-            "It found me in a hidden folder, three levels down. Searching beats looking.\n" +
+            "It found this egg in a hidden folder, three levels down. Searching beats looking.\n" +
             "\n" +
             "That's all seven. You've hatched — the shell is yours now.\n" +
             "\n" +

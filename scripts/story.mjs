@@ -53,9 +53,9 @@ const stage = (i, state) => {
   if (STAGES[i].announce) md.push(`Door announcement: ${STAGES[i].announce}`, "");
 };
 
-let s = { ...initialState };
+let s = { ...initialState, started: true }; // `start` itself first asks the name
 md.push("## Opening", "", "Banner: see `src/App.tsx` (EggshellOS 1.0 — eggshell.local / Last login by hen / type `start`).", "");
-block("start", run("start", [], s));
+block("start  (after \"What's your name?\")", run("start", [], { ...s, playerName: "<name>" }));
 block("help (egg 1)", run("help", [], s));
 
 stage(0, s);

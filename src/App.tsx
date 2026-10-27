@@ -3,7 +3,7 @@ import { FsNode, GameState, initialState } from "./types";
 import { EGGS, buildFilesystem, lastLogin } from "./game/fs";
 import { GAME_COMMANDS, candidates, commands, completeInput, isClear } from "./game/commands";
 import { STAGES, activeStageIndex, countCommand, doorOpen, parLine, statsLines, tickHint, totalCommands } from "./game/stage";
-import { loadAutosave, writeAutosave } from "./game/save";
+import { deleteSave, listSaves, loadSave, writeAutosave } from "./game/save";
 import { getTheme } from "./terminal/theme";
 import { EditorModal } from "./terminal/EditorModal";
 import { InlinePasswordForm } from "./terminal/InlinePasswordForm";
@@ -27,6 +27,7 @@ interface InlinePromptState {
   label: string;
   onSubmit: (pwd: string) => void;
   onCancel?: () => void;
+  visible?: boolean;
 }
 
 export default function App() {
@@ -41,12 +42,12 @@ export default function App() {
   const [inlinePrompt, setInlinePrompt] = useState<InlinePromptState | null>(null);
   const [showIntro, setShowIntro] = useState(true);
   const [sudoActive, setSudoActive] = useState(false);
-  const [hasSave] = useState<boolean>(() => loadAutosave() !== null);
   const [mobileMapOpen, setMobileMapOpen] = useState(false);
   const [celebrating, setCelebrating] = useState(false);
+  const [, setSavesVersion] = useState(0); // re-render the menu's save list after a delete
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const firstRender = useRef(true);
   const failStreak = useRef(0); // consecutive commands that printed an error
   const lastKeyTab = useRef(false);
@@ -66,13 +67,14 @@ export default function App() {
   // Autosave (localStorage["eggshell-autosave"], format = exportSave) on every
   // state change after mount — but never while the intro overlay is open:
   // pre-restore changes there (e.g. picking a difficulty) would overwrite the
-  // existing autosave with a fresh state before [ restore save ] is clicked.
+  // game's save with a fresh state before its [ restore ] is clicked.
   useEffect(() => {
     if (firstRender.current) {
       firstRender.current = false;
       return;
     }
-    if (showIntro) return;
+    // Nor before the first egg: a game earns its save slot there, so idle tries don't fill the list.
+    if (showIntro || state.eggsFound.length === 0) return;
     writeAutosave(state);
   }, [state, showIntro]);
 
@@ -99,7 +101,7 @@ export default function App() {
     // the chick stays; the table sits right under it
     CHICK.slice(2).forEach((l) => print(l, "text-yellow-300"));
     print("");
-    print("Your hunt vs. Hen's way", "text-emerald-300");
+    print(`${state.playerName ? `${state.playerName}'s hunt` : "Your hunt"} vs. Hen's way`, "text-emerald-300");
     print(parLine(totalCommands(state)), "text-yellow-300");
     statsLines(state).forEach((l, i) => print(l, i === 1 ? "text-emerald-300" : undefined));
   };
@@ -126,6 +128,12 @@ export default function App() {
     return `player@eggshell:${where}${sym}`;
   };
 
+  const restored = (s: GameState) => {
+    const done = activeStageIndex(s) < 0;
+    print(`Save restored${s.playerName ? ` — welcome back, ${s.playerName}` : ""}. 🥚 ${s.eggsFound.length}/${EGGS.length}`, "text-emerald-300");
+    print(done ? "All eggs found. `eggs` shows your scorecard." : "`eggs` shows where you left off.", "text-stone-400");
+  };
+
   const runCommand = (raw: string) => {
     const trimmed = raw.trim();
     if (!trimmed) {
@@ -139,6 +147,11 @@ export default function App() {
     setLines((prev) => [...prev, { text: "", prompt: `${prompt()} ${trimmed}` }]);
 
     const [cmd, ...args] = trimmed.split(/\s+/);
+    // Nothing runs before `start` (which asks the name), except getting back to a saved game.
+    if (!state.started && !["start", "load", "menu", "quit", "exit"].includes(cmd)) {
+      print("type `start` first — it begins the game.", "text-red-400");
+      return;
+    }
     if (!GAME_COMMANDS.has(cmd)) setState((s) => countCommand(s));
     if (cmd !== "hint") setState(tickHint);
 
@@ -162,8 +175,8 @@ export default function App() {
       celebrate: () => (winPending.current = true),
       sudoActive,
       setSudoActive,
-      passwordPrompt: (onSubmit, title, onCancel) =>
-        setInlinePrompt({ label: title ?? "Password:", onSubmit, onCancel }),
+      passwordPrompt: (onSubmit, title, onCancel, visible) =>
+        setInlinePrompt({ label: title ?? "Password:", onSubmit, onCancel, visible }),
     });
     failStreak.current = failed && cmd !== "hint" ? failStreak.current + 1 : 0;
     if (failStreak.current >= 3 && (state.difficulty === "easy" || state.difficulty === "medium")) {
@@ -172,7 +185,7 @@ export default function App() {
     }
   };
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = (e: React.SyntheticEvent) => {
     e.preventDefault();
     const value = input;
     setHistory((h) => [...h, value]);
@@ -181,8 +194,11 @@ export default function App() {
     runCommand(value);
   };
 
-  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "ArrowUp") {
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      onSubmit(e);
+    } else if (e.key === "ArrowUp") {
       e.preventDefault();
       if (history.length === 0) return;
       const nextIdx = historyIdx === null ? history.length - 1 : Math.max(0, historyIdx - 1);
@@ -220,6 +236,14 @@ export default function App() {
   // Grey suggestion after the cursor: what Tab would add.
   const completedLine = input.trim() ? completeInput(input, root, state, cwd) : null;
   const ghost = completedLine?.startsWith(input) ? completedLine.slice(input.length) : "";
+
+  // The input grows with its wrapped lines.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [input, showIntro, editor, inlinePrompt]);
 
   useEffect(() => {
     if (!editor && !inlinePrompt && !celebrating) inputRef.current?.focus();
@@ -288,6 +312,7 @@ export default function App() {
           {inlinePrompt && (
             <InlinePasswordForm
               label={inlinePrompt.label}
+              visible={inlinePrompt.visible}
               onSubmit={(pwd) => {
                 inlinePrompt.onSubmit(pwd);
                 setInlinePrompt(null);
@@ -303,26 +328,28 @@ export default function App() {
           {celebrating && <Celebration onDone={endCelebration} cls={theme.remap["text-yellow-300"] ?? "text-yellow-300"} />}
 
           {!editor && !inlinePrompt && !showIntro && !celebrating && (
-            <form onSubmit={onSubmit} className="flex items-center gap-2">
+            <form onSubmit={onSubmit} className="flex items-start gap-2">
               <span className={`${theme.prompt} shrink-0`}>
                 <span className="sm:hidden">{cwd === "/home/player" ? "~" : cwd}{sudoActive ? "#" : "$"}</span>
                 <span className="hidden sm:inline">{prompt()}</span>
               </span>
               <div className="relative flex-1">
                 {/* ghost text: invisible copy of the input, then the suggestion */}
-                <div aria-hidden className="absolute inset-0 pointer-events-none whitespace-pre overflow-hidden">
+                {/* a textarea, so long lines (a save string) wrap instead of scrolling away */}
+                <div aria-hidden className="absolute inset-0 pointer-events-none whitespace-pre-wrap break-all overflow-hidden">
                   <span className="invisible">{input}</span>
                   <span className="text-stone-500">{ghost}</span>
                 </div>
-                <input
+                <textarea
                   ref={inputRef}
                   autoFocus
+                  rows={1}
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={(e) => setInput(e.target.value.replace(/\n/g, " "))}
                   onKeyDown={onKeyDown}
                   spellCheck={false}
                   autoComplete="off"
-                  className={`relative w-full bg-transparent outline-none ${theme.input} ${theme.caret}`}
+                  className={`relative block w-full resize-none overflow-hidden whitespace-pre-wrap break-all bg-transparent outline-none ${theme.input} ${theme.caret}`}
                 />
               </div>
             </form>
@@ -339,21 +366,24 @@ export default function App() {
       {/* Intro / main-menu overlay (also reachable in-game via `menu` / `quit`) */}
       {showIntro && (
         <IntroModal
-          hasSave={hasSave}
+          saves={showIntro ? listSaves() : []}
+          onDelete={(slot) => { deleteSave(slot); setSavesVersion((v) => v + 1); }}
           currentDifficulty={state.difficulty}
           onDifficultyChange={(d) => setState((s) => ({ ...s, difficulty: d, hint: initialState.hint }))}
           onClose={() => setShowIntro(false)}
-          onRestore={() => {
-            const saved = loadAutosave();
+          onRestore={(slot) => {
+            const saved = loadSave(slot);
             if (saved) {
               setState(saved);
               setCwd("/home/player");
+              restored(saved);
             }
             setShowIntro(false);
           }}
           onLoadSave={(saved) => {
             setState(saved);
             setCwd("/home/player");
+            restored(saved);
             setShowIntro(false);
           }}
         />

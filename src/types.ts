@@ -49,6 +49,9 @@ export interface GameState {
   stats: { commands: number; ms: number }[];
   lastAt: number; // time of the previous command, for `stats` ms; not saved
   helpSeen: number; // stage `help` was last shown at; later entries are marked new
+  started: boolean; // `start` typed; until then only start / load / menu run
+  playerName: string; // asked by `start`; shown in the menu's save list and the win
+  slot: number; // save slot = when this game was started; each game keeps its own
 }
 
 export const initialState: GameState = {
@@ -80,4 +83,7 @@ export const initialState: GameState = {
   stats: Array.from({ length: 7 }, () => ({ commands: 0, ms: 0 })),
   lastAt: 0,
   helpSeen: 0,
+  started: false,
+  playerName: "",
+  slot: 0,
 };

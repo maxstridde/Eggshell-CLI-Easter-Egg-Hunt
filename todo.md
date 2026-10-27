@@ -62,7 +62,21 @@ Branch: `finish-polish`. Small unsigned commits per step.
 - [x] Egg 7: messy backups with decoys + 3 easter eggs (Rooster's IOU, grocery list, chicken)
 - [x] Per-egg time/commands vs. Hen's way; ASCII win celebration
 - [x] schema.org JSON-LD enriched
-- [ ] Playtest 2 → merge to main → deploy
+- [x] Playtest 2 (2026-10-27) → fixes, see below
+- [ ] Playtest 3 → merge to main → deploy
+
+## Playtest 2 (2026-10-27) → fixes
+
+- [x] grep -r egg missed egg 7 (only "EGG" upper case in it) → egg text says "egg"; `grep -i`
+- [x] rm quota line: the hidden-file hint only once nothing visible is left
+- [x] `reset <file>` after a wiped config; edit points at it
+- [x] Map: / as root (home, etc, root, var as children), dirs first, "+N more" instead of cutting, panel fits its content
+- [x] `ls -R` (recursive; `-r` reverses, as in bash)
+- [x] .attic: two more 2-deep decoy folders; first look into a backups subfolder suggests searching
+- [x] wifi Tab completion (list/connect, SSIDs)
+- [x] `start` first, asks the name; multiple save games (from the first egg on), menu lists name/eggs/last played; restore line; `eggs` at the win shows the scorecard
+- [x] Entering the shell without restoring no longer overwrites the save
+- [x] Command line wraps long input
 - [x] Playthrough check updated (19 checks: bypasses, hint reset, door announce, new-commands nudge, nano alias, win)
 
 ## Inspiration: learnGitBranching (researched 2026-10-27)

@@ -1,6 +1,6 @@
 import { Difficulty, FsNode, GameState, initialState } from "../types";
 import { EGGS, ROOT_EGG, TIDY_EGG, fileContent, findNode, hasBackup, lockedAt, resolvePath } from "./fs";
-import { STAGES, activeStageIndex, hintExhausted, nextEggLine, recordHint, stageHint } from "./stage";
+import { STAGES, activeStageIndex, hintExhausted, nextEggLine, recordHint, stageHint, statsLines } from "./stage";
 import { exportSave, importSave } from "./save";
 
 export interface CmdContext {
@@ -13,7 +13,8 @@ export interface CmdContext {
   openEditor: (path: string, initial: string, onSave: (newContent: string) => void) => void;
   sudoActive: boolean;
   setSudoActive: (b: boolean) => void;
-  passwordPrompt: (onSubmit: (pwd: string) => void, title?: string, onCancel?: () => void) => void;
+  // visible: a plain text answer (the name), not a hidden password
+  passwordPrompt: (onSubmit: (pwd: string) => void, title?: string, onCancel?: () => void, visible?: boolean) => void;
   openMenu: () => void;
   celebrate: () => void; // last egg read: App shows the win once the state has caught up
 }
@@ -34,6 +35,7 @@ const HELP_ENTRIES: HelpEntry[] = [
   { cmd: "pwd",                       desc: "print working directory — where am I?", minStage: 0 },
   { cmd: "ls [path]",                 desc: "list — show what's in a folder", minStage: 0 },
   { cmd: "ls -a [path]",              desc: "list all — hidden files too (names starting with .)", minStage: 2 },
+  { cmd: "ls -R [path]",              desc: "list recursively — every folder below too (capital R)", minStage: 6 },
   { cmd: "cd <path>",                 desc: "change directory  (cd .. goes up, cd alone goes home)", minStage: 0 },
   { cmd: "cat <file>",                desc: "concatenate — print a file's contents", minStage: 0 },
   { cmd: "clear",                     desc: "clear the screen", minStage: 0 },
@@ -48,7 +50,7 @@ const HELP_ENTRIES: HelpEntry[] = [
   { cmd: "base64 -d <text>",          desc: "decode base64 text back into plain text", minStage: 4 },
   { cmd: "sudo <command>",            desc: "superuser do — run one command as the administrator", minStage: 4 },
   { cmd: "unzip <file>",              desc: "extract a .zip archive", minStage: 5 },
-  { cmd: "grep [-r] <text> <path>",   desc: "global regular expression print — search inside files (-r: a whole folder)", minStage: 6 },
+  { cmd: "grep [-r] [-i] <text> <path>", desc: "global regular expression print — search inside files (-r: a whole folder, -i: any case)", minStage: 6 },
   { cmd: "start",                     desc: "how to begin", minStage: 0, game: true },
   { cmd: "help [all]",                desc: "this list  (all: every command, even later ones)", minStage: 0, game: true },
   { cmd: "eggs",                      desc: "your eggs so far, and what's next", minStage: 0, game: true },
@@ -56,6 +58,7 @@ const HELP_ENTRIES: HelpEntry[] = [
   { cmd: "difficulty [level]",        desc: "show or set difficulty (easy/medium/hard/impossible)", minStage: 0, game: true },
   { cmd: "map",                       desc: "toggle the map panel (medium/hard)", minStage: 0, game: true },
   { cmd: "save / load <string>",      desc: "export progress as a string / restore it", minStage: 0, game: true },
+  { cmd: "reset <file>",              desc: "put one of Hen's files back the way it was (after a bad edit)", minStage: 3, game: true },
   { cmd: "menu",                      desc: "back to the main menu (progress is kept)", minStage: 0, game: true },
   { cmd: "asciizoo <animal>",         desc: "ASCII animals  (asciizoo list)", minStage: 0, game: true },
 ];
@@ -204,6 +207,14 @@ function destination(ctx: CmdContext, cmd: string, src: string, dstArg: string):
 }
 
 function addVisited(ctx: CmdContext, path: string) {
+  // Egg 7: the first look inside a backups subfolder suggests searching instead.
+  const firstDig = path.startsWith("/var/backups/") && !ctx.state.visited.some((v) => v.startsWith("/var/backups/"));
+  if (firstDig && activeStageIndex(ctx.state) === 6 && ctx.state.difficulty !== "impossible")
+    ctx.print(
+      "Folder by folder, this could take a while. Maybe there's a smarter way than looking yourself." +
+        (ctx.state.difficulty === "hard" ? "" : " Someone else could do the searching for you — the computer, say."),
+      "text-stone-400"
+    );
   ctx.setState((s) => {
     if (s.visited.includes(path)) return s;
     return { ...s, visited: [...s.visited, path] };
@@ -252,7 +263,18 @@ export const commands: Record<string, CommandHandler> = {
   },
 
   start: (_, ctx) => {
-    ctx.print("Welcome to Eggshell.", "text-emerald-300");
+    if (!ctx.state.started) {
+      // First `start`: the name comes first, then the welcome.
+      const begin = (name: string) => {
+        const playerName = name.trim().slice(0, 24);
+        ctx.setState((s) => ({ ...s, started: true, playerName, slot: Date.now() }));
+        commands.start([], { ...ctx, state: { ...ctx.state, started: true, playerName } });
+      };
+      ctx.passwordPrompt(begin, "What's your name?", () => begin(""), true);
+      return;
+    }
+    const name = ctx.state.playerName;
+    ctx.print(name ? `Welcome to Eggshell, ${name}.` : "Welcome to Eggshell.", "text-emerald-300");
     ctx.print("This is a shell: you type a command, press Enter, and the computer answers.");
     ctx.print("Commands are short — mostly abbreviations of English words.");
     ctx.print("");
@@ -390,11 +412,15 @@ export const commands: Record<string, CommandHandler> = {
     });
     const next = nextEggLine(ctx.state);
     if (next) ctx.print(next, "text-yellow-300");
+    if (activeStageIndex(ctx.state) < 0) statsLines(ctx.state).forEach((l, i) => ctx.print(l, i === 1 ? "text-emerald-300" : undefined));
   },
 
   ls: (allArgs, ctx) => {
-    // Flags: -a shows hidden (dot) names; other flags (-l…) are accepted and ignored.
-    const showHidden = allArgs.some((a) => /^-\w*a/.test(a));
+    // Flags: -a shows hidden (dot) names, -R lists every folder below too,
+    // -r reverses the order (as in bash); others (-l…) are accepted and ignored.
+    const flags = allArgs.filter((a) => a.startsWith("-")).join("");
+    const showHidden = flags.includes("a");
+    const recursive = flags.includes("R");
     const args = allArgs.filter((a) => !a.startsWith("-"));
     const target = args[0] ? resolvePath(ctx.cwd, args[0]) : ctx.cwd;
     const node = findNode(ctx.root, target);
@@ -412,35 +438,51 @@ export const commands: Record<string, CommandHandler> = {
 
     addVisited(ctx, target);
 
-    const names: string[] = [];
-
-    if (node && node.kind === "dir") {
-      for (const child of node.children) {
-        const isLocked = child.kind === "dir" && child.locked && child.locked(ctx.state);
-        const suffix = child.kind === "dir" ? (isLocked ? "/  [locked]" : "/") : "";
-        names.push(child.name + suffix);
+    // Names in one folder, folders with a trailing / (and [locked] if shut).
+    const namesIn = (dir: string) => {
+      const d = findNode(ctx.root, dir);
+      const names: string[] = [];
+      if (d?.kind === "dir") {
+        for (const child of d.children) {
+          const isLocked = child.kind === "dir" && child.locked?.(ctx.state);
+          names.push(child.name + (child.kind === "dir" ? (isLocked ? "/  [locked]" : "/") : ""));
+        }
       }
-    }
+      for (const u of ctx.state.userCreated) {
+        if (parentOf(u.path) === dir) names.push(baseName(u.path) + (u.type === "dir" ? "/" : ""));
+      }
+      const shown = (showHidden ? names : names.filter((n) => !n.startsWith("."))).sort();
+      return flags.includes("r") ? shown.reverse() : shown;
+    };
+    const printNames = (names: string[]) =>
+      names.forEach((n) => {
+        if (n.includes("[locked]")) ctx.print(n, "text-stone-400");
+        else if (n.endsWith("/")) ctx.print(n, "text-sky-300");
+        else ctx.print(n);
+      });
 
-    const userStuff = ctx.state.userCreated.filter((u) => {
-      const uParent = u.path.split("/").slice(0, -1).join("/") || "/";
-      return uParent === target;
-    });
-    for (const u of userStuff) {
-      const name = u.path.split("/").pop()!;
-      names.push(u.type === "dir" ? name + "/" : name);
-    }
-
-    const shown = showHidden ? names : names.filter((n) => !n.startsWith("."));
-    if (shown.length === 0) {
-      ctx.print("(empty)");
+    if (!recursive) {
+      const shown = namesIn(target);
+      if (shown.length === 0) ctx.print("(empty)");
+      else printNames([...(showHidden ? ["./", "../"] : []), ...shown]);
+      if (flags.includes("r") && !flags.includes("R"))
+        ctx.print("(-r reverses the order; -R, capital, lists every folder below)", "text-stone-400");
       return;
     }
-    [...(showHidden ? ["./", "../"] : []), ...shown.sort()].forEach((n) => {
-      if (n.includes("[locked]")) ctx.print(n, "text-stone-400");
-      else if (n.endsWith("/")) ctx.print(n, "text-sky-300");
-      else ctx.print(n);
-    });
+    // -R: like bash, a "path:" header per folder, then the folders below it.
+    const walk = (dir: string, first: boolean) => {
+      const shown = namesIn(dir);
+      if (!first) ctx.print("");
+      ctx.print(`${dir}:`, "text-emerald-300");
+      printNames(shown);
+      for (const n of shown) {
+        if (!n.endsWith("/")) continue;
+        const sub = `${dir === "/" ? "" : dir}/${n.slice(0, -1)}`;
+        if (sub === "/root" && !ctx.state.rootEntered) continue;
+        walk(sub, false);
+      }
+    };
+    walk(target, true);
   },
 
   cd: (args, ctx) => {
@@ -621,7 +663,33 @@ export const commands: Record<string, CommandHandler> = {
         return next;
       });
       if (saved) ctx.print(`"${args[0]}" saved.`, "text-emerald-300");
+      // Hen's settings (name = value) missing after the edit: point at `reset`.
+      const original = node?.kind === "file" ? fileContent(node, ctx.state) : "";
+      const keys = [...original.matchAll(/^(\w+)\s*=/gm)].map((m) => m[1]);
+      if (saved && keys.some((k) => !new RegExp(`^\\s*${k}\\s*=`, "m").test(newContent)))
+        ctx.print(`Some of Hen's settings are gone from ${args[0]}. \`reset ${args[0]}\` puts the original back.`, "text-stone-400");
     });
+  },
+
+  // Undo every edit of one of Hen's files, and the state that edit set.
+  reset: (args, ctx) => {
+    if (!args[0]) {
+      ctx.print("reset: which file? e.g. `reset secrets.cfg`", "text-red-400");
+      return;
+    }
+    const target = resolvePath(ctx.cwd, args[0]);
+    if (blocked(ctx, "reset", target, args[0])) return;
+    const node = findNode(ctx.root, target);
+    if (!(target in ctx.state.edits)) {
+      ctx.print(node || ctx.state.userCreated.some((u) => u.path === target) ? `reset: ${args[0]} is unchanged` : `reset: ${args[0]}: No such file or directory`, "text-red-400");
+      return;
+    }
+    ctx.setState((s) => {
+      const { [target]: _, ...edits } = s.edits;
+      const patch = node?.kind === "file" && node.onEdit ? node.onEdit(fileContent(node, s)).patch : undefined;
+      return { ...s, edits, ...patch };
+    });
+    ctx.print(`reset: ${args[0]} is back to Hen's original.`, "text-emerald-300");
   },
 
   wifi: (args, ctx) => {
@@ -788,8 +856,14 @@ export const commands: Record<string, CommandHandler> = {
     if (removed.length === 0) return;
     // Egg 3: the visible junk is gone but the hidden one isn't — say so, or players think they're done.
     const isTmp = (p: string) => /^\/home\/player\/secrets\/[^/]+\.tmp$/.test(p);
-    if (removed.some(isTmp) && ctx.state.userCreated.some((u) => isTmp(u.path) && !removed.includes(u.path)))
-      ctx.print("~/secrets is still over quota: something temporary is left. Not every file shows up in a plain listing.", "text-yellow-300");
+    const tmpLeft = ctx.state.userCreated.filter((u) => isTmp(u.path) && !removed.includes(u.path)).map((u) => baseName(u.path));
+    if (removed.some(isTmp) && tmpLeft.length)
+      ctx.print(
+        tmpLeft.every((n) => n.startsWith("."))
+          ? "~/secrets is still over quota: something temporary is left. Not every file shows up in a plain listing."
+          : "~/secrets is still over quota.",
+        "text-yellow-300"
+      );
     const update = (s: GameState) => withTidy({ ...s, userCreated: s.userCreated.filter((u) => !removed.includes(u.path)) });
     ctx.setState(update);
   },
@@ -888,11 +962,14 @@ export const commands: Record<string, CommandHandler> = {
   },
 
   grep: (args, ctx) => {
-    const recursive = args[0] === "-r";
-    const rest = recursive ? args.slice(1) : args;
+    // Flags: -r a whole folder, -i ignore case (combined: -ri).
+    const flags = args.filter((a) => a.startsWith("-")).join("");
+    const recursive = /r/i.test(flags);
+    const ignoreCase = flags.includes("i");
+    const rest = args.filter((a) => !a.startsWith("-"));
     const pattern = rest[0];
     if (!pattern) {
-      ctx.print("grep: usage — `grep [-r] <text> <file-or-directory>`", "text-red-400");
+      ctx.print("grep: usage — `grep [-r] [-i] <text> <file-or-directory>`", "text-red-400");
       return;
     }
     const target = resolvePath(ctx.cwd, rest[1] ?? ".");
@@ -945,7 +1022,7 @@ export const commands: Record<string, CommandHandler> = {
     for (const f of files) {
       if (f.path.endsWith(".zip")) continue;
       for (const line of f.content.split("\n")) {
-        if (line.includes(pattern)) {
+        if (ignoreCase ? line.toLowerCase().includes(pattern.toLowerCase()) : line.includes(pattern)) {
           matches++;
           ctx.print(recursive ? `${f.path}:${line}` : line);
         }
@@ -1020,13 +1097,21 @@ commands.stage = commands.eggs;
 // ponytail: prefix + slash, so /home/playerx isn't "home"
 const inHome = (p: string) => p === "/home/player" || p.startsWith("/home/player/");
 
+// Network names from /etc/wifi.json (the hidden one stays hidden).
+function ssids(root: FsNode): string[] {
+  const node = findNode(root, "/etc/wifi.json");
+  if (node?.kind !== "file" || typeof node.content !== "string") return [];
+  return (JSON.parse(node.content).networks as { ssid: string; signal: number }[]).filter((n) => n.signal > 0).map((n) => n.ssid);
+}
+
 export function candidates(raw: string, root: FsNode, state: GameState, cwd: string): string[] {
   const parts = raw.split(/\s+/);
   const last = parts[parts.length - 1] ?? "";
   const commandNames = () => Object.keys(commands).filter((c) => !HIDDEN.includes(c));
   if (parts.length === 1) return commandNames().filter((c) => c.startsWith(last)).sort();
   // Fixed-word arguments complete from their own list, not from file names.
-  const words = { difficulty: DIFFICULTY_LEVELS, man: commandNames() }[parts[0]];
+  const words = { difficulty: DIFFICULTY_LEVELS, man: commandNames(), wifi: ["list", "connect"] }[parts[0]];
+  if (parts[0] === "wifi" && parts[1] === "connect" && parts.length === 3) return ssids(root).filter((w) => w.startsWith(last));
   if (words) return parts.length === 2 ? words.filter((w) => w.startsWith(last)).sort() : [];
 
   // Path completion: split the token into directory part + name prefix.

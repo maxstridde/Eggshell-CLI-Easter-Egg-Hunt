@@ -6,7 +6,9 @@ export function InlinePasswordForm({
   onSubmit,
   onCancel,
   theme,
+  visible,
 }: {
+  visible?: boolean; // plain text (a name) instead of a hidden password
   label: string;
   onSubmit: (v: string) => void;
   onCancel: () => void;
@@ -26,7 +28,7 @@ export function InlinePasswordForm({
       <span className={`${theme.prompt} shrink-0`}>{label}</span>
       <input
         ref={ref}
-        type="password"
+        type={visible ? "text" : "password"}
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {

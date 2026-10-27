@@ -16,7 +16,7 @@ try {
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.getByText("[ enter shell ]").click();
-  const input = page.locator("form input").last();
+  const input = page.locator("form textarea").last();
   const out = () => page.locator(".select-text").allInnerTexts().then((t) => t.join("\n"));
   const run = async (cmd) => { await input.fill(cmd); await input.press("Enter"); await page.waitForTimeout(40); };
   const password = async (pw) => { const f = page.locator('input[type="password"]'); await f.fill(pw); await f.press("Enter"); await page.waitForTimeout(40); };
@@ -27,6 +27,13 @@ try {
     await ta.press("Control+s");
     await page.waitForTimeout(40);
   };
+
+  // Nothing runs before start; start asks the name.
+  await run("ls");
+  check(/type `start` first/.test(await last()), "commands wait for start");
+  await run("start");
+  await page.locator('input[type="text"]').fill("Tester"); await page.locator('input[type="text"]').press("Enter"); await page.waitForTimeout(40);
+  check(/Welcome to Eggshell, Tester/.test(await out()), "start asks the name");
 
   // Former bypasses must be denied on a fresh game.
   for (const cmd of ["cat ~/documents/egg1.txt", "ls /root", "unzip /root/egg6.zip", "edit ~/secrets/secrets.cfg", "cat /var/backups/egg7.txt", "sudo ls"]) {
@@ -47,6 +54,9 @@ try {
   await run("hint");
   check(/hint 3\/3: `cat \/etc\/wifi.json`/.test(await last()), "exact hint after confirming");
 
+  await input.fill("wifi co"); await input.press("Tab");
+  check((await input.inputValue()) === "wifi connect", "Tab completes wifi connect");
+  await input.fill("");
   await run("wifi connect EggHunt-5G"); await password("yolk-yolk-123");
   await run("cat ~/documents/egg1.txt");
   await run("difficulty medium"); await run("hint"); await run("hint");
@@ -64,8 +74,10 @@ try {
   check(!/← new/.test(await out()), "second help: nothing new");
   await run("cd ~/secrets"); await run("rm report.txt");
   check(/still needed/.test(await last()), "rm report.txt refused");
+  await run("rm thumbs.tmp");
+  check(/still over quota\.$/.test(await last()), "rm one .tmp: over quota, no hidden-file hint yet");
   await run("rm *.tmp");
-  check(/still over quota/.test(await last()), "rm *.tmp warns a hidden one is left");
+  check(/plain listing/.test(await last()), "rm *.tmp warns a hidden one is left");
   await run("mv report.txt ~/documents/");
   await run("cat quota.txt");
   check(/still over quota/.test(await out()) && !/egg3/.test(await (async () => { await run("ls"); return last(); })()), "hidden .cache.tmp survives rm *.tmp");
@@ -76,6 +88,11 @@ try {
   await run("edit secrets.cfg");
   check(/back/.test(await last()), "edit refused without backup");
   await run("cp secrets.cfg secrets.cfg.bak"); await run("nano secrets.cfg");
+  await page.locator("textarea").first().fill(""); await page.keyboard.press("Control+s"); await page.waitForTimeout(40);
+  check(/reset secrets\.cfg/.test(await last()), "wiped config points at reset");
+  await run("reset secrets.cfg"); await run("cat secrets.cfg");
+  check(/path_to_vault_locked = true/.test(await last()), "reset restores Hen's original");
+  await run("nano secrets.cfg");
   await editReplace("path_to_vault_locked = true", "path_to_vault_locked = false");
   await run("cat ~/vault/egg4.txt");
   await run("base64 -d c2VjcmV0LWVnZw==");
@@ -88,6 +105,11 @@ try {
   await run("unzip egg6.zip"); await run("cat egg6.txt");
   await run("ls /var/backups");
   check(!/attic/.test(await last()), "plain ls hides .attic");
+  await run("ls -R /var/backups");
+  check(/\/var\/backups\/photos:/.test(await out()) && !/\.attic/.test(await out()), "ls -R lists subfolders, skips hidden");
+  await run("grep -r egg /var/backups");
+  check(/\.attic\/2019\/misc\/egg7\.txt:/.test(await last()), "grep -r egg finds egg 7 too");
+  await run("clear");
   await run("grep -r egg /var/log"); await run("grep -r golden-yolk /var/backups");
   check(/\/var\/backups\/\.attic\/2019\/misc\/egg7\.txt:label: golden-yolk/.test(await out()), "grep finds the hidden egg 7");
   await run("cat /var/backups/egg7_FINAL.txt");
@@ -99,7 +121,12 @@ try {
   await run("eggs");
   const bar = await page.locator("text=🥚").first().innerText();
   check(bar.includes("7/7"), `egg counter: ${bar.trim()}`);
-  check(/hatched/.test(await last()), "eggs shows the win");
+  check(/hatched/.test(await out()) && /#7 The Investigator/.test(await last()), "eggs shows the win and the scorecard");
+  await page.reload();
+  check(/Tester · 🥚 7\/7 \(finished\)/.test(await page.content()), "menu lists the finished save");
+  await page.getByText("[ enter shell ]").click();
+  await page.reload();
+  check(/7\/7 \(finished\)/.test(await page.content()), "entering without restore keeps the save");
   if (failures) console.log("\n--- last output ---\n" + (await out()).split("\n").slice(-25).join("\n"));
 } finally {
   await browser.close();

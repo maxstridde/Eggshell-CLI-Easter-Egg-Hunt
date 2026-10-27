@@ -3,7 +3,9 @@
 
 import { Difficulty, GameState, TerminalUser, initialState } from "../types";
 
-export const SAVE_KEY = "eggshell-autosave";
+export const SAVE_KEY = "eggshell-autosave"; // the single save of earlier builds, migrated into SAVES_KEY
+export const SAVES_KEY = "eggshell-saves"; // { [slot]: save string }, one slot per started game
+const MAX_SAVES = 10; // ponytail: ~2 KB each, the oldest drops off beyond this
 export const SAVE_VERSION = 2; // v2: 7 eggs = 7 stages, v1 saves are not compatible
 
 function encodeBase64(obj: unknown): string {
@@ -42,6 +44,10 @@ function serializeState(s: GameState) {
     mapVisible: s.mapVisible,
     stats: s.stats,
     helpSeen: s.helpSeen,
+    started: s.started,
+    playerName: s.playerName,
+    slot: s.slot,
+    savedAt: Date.now(),
   };
 }
 
@@ -63,6 +69,9 @@ function deserializeState(data: Record<string, unknown>): GameState {
     // ponytail: pad to 7 per-egg entries, saves from earlier builds may hold fewer
     stats: initialState.stats.map((e, i) => ({ ...e, ...(data.stats as GameState["stats"] | undefined)?.[i] })),
     helpSeen: (data.helpSeen as number) ?? 0,
+    started: (data.started as boolean) ?? true, // saves from before the start gate were started
+    playerName: (data.playerName as string) ?? "",
+    slot: (data.slot as number) ?? ((data.savedAt as number) || Date.now()),
     difficulty: (data.difficulty as Difficulty) ?? "easy",
     terminalUser: (data.terminalUser as TerminalUser) ?? "player",
     visited: (data.visited as string[]) ?? ["/home/player"],
@@ -86,22 +95,64 @@ export function importSave(str: string): GameState | string {
   }
 }
 
-// Read the autosave from localStorage (null if absent/invalid/unavailable).
-export function loadAutosave(): GameState | null {
+export interface SaveInfo { slot: number; name: string; eggs: number; savedAt: number }
+
+// All save slots from localStorage ({} if unavailable). Folds the single
+// autosave of earlier builds in once.
+function readSaves(): Record<string, string> {
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return null;
-    const result = importSave(raw);
-    return typeof result === "string" ? null : result;
+    const saves = JSON.parse(localStorage.getItem(SAVES_KEY) ?? "{}") as Record<string, string>;
+    const legacy = localStorage.getItem(SAVE_KEY);
+    if (legacy) {
+      const st = importSave(legacy);
+      if (typeof st !== "string") saves[st.slot] = legacy;
+      localStorage.setItem(SAVES_KEY, JSON.stringify(saves));
+      localStorage.removeItem(SAVE_KEY);
+    }
+    return saves;
   } catch {
-    return null;
+    return {};
   }
 }
 
-// Write the autosave to localStorage (silent on failure).
+// What the menu lists: whose game, how far, when — newest first.
+export function listSaves(): SaveInfo[] {
+  return Object.entries(readSaves())
+    .map(([slot, raw]) => {
+      try {
+        const d = decodeBase64(raw) as Record<string, unknown>;
+        if (d.v !== SAVE_VERSION) return null;
+        return { slot: Number(slot), name: (d.playerName as string) ?? "", eggs: (d.eggsFound as string[])?.length ?? 0, savedAt: (d.savedAt as number) ?? 0 };
+      } catch {
+        return null;
+      }
+    })
+    .filter((x): x is SaveInfo => x !== null)
+    .sort((a, b) => b.savedAt - a.savedAt);
+}
+
+export function loadSave(slot: number): GameState | null {
+  const raw = readSaves()[slot];
+  const st = raw ? importSave(raw) : null;
+  return st && typeof st !== "string" ? st : null;
+}
+
+export function deleteSave(slot: number): void {
+  const saves = readSaves();
+  delete saves[slot];
+  try {
+    localStorage.setItem(SAVES_KEY, JSON.stringify(saves));
+  } catch {
+    /* storage may be unavailable */
+  }
+}
+
+// Write the game into its own slot (silent on failure), keeping the newest MAX_SAVES.
 export function writeAutosave(state: GameState): void {
   try {
-    localStorage.setItem(SAVE_KEY, exportSave(state));
+    const saves: Record<string, string> = { ...readSaves(), [state.slot]: exportSave(state) };
+    const keep = Object.keys(saves).sort((a, b) => Number(b) - Number(a)).slice(0, MAX_SAVES);
+    localStorage.setItem(SAVES_KEY, JSON.stringify(Object.fromEntries(keep.map((k) => [k, saves[k]]))));
   } catch {
     /* storage may be unavailable */
   }

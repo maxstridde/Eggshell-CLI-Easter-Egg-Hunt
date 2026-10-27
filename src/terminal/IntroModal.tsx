@@ -1,21 +1,23 @@
 import { useState } from "react";
 import { Difficulty, GameState } from "../types";
-import { importSave } from "../game/save";
+import { SaveInfo, importSave } from "../game/save";
 import { retireDate } from "../game/fs";
 
 export function IntroModal({
-  hasSave,
+  saves,
+  onDelete,
   currentDifficulty,
   onDifficultyChange,
   onClose,
   onRestore,
   onLoadSave,
 }: {
-  hasSave: boolean;
+  saves: SaveInfo[];
+  onDelete: (slot: number) => void;
   currentDifficulty: Difficulty;
   onDifficultyChange: (d: Difficulty) => void;
   onClose: () => void;
-  onRestore: () => void;
+  onRestore: (slot: number) => void;
   onLoadSave: (state: GameState) => void;
 }) {
   const [showLoadInput, setShowLoadInput] = useState(false);
@@ -126,16 +128,27 @@ export function IntroModal({
           </div>
         )}
 
+        {/* One row per saved game (a game is saved from its first egg on) */}
+        {saves.length > 0 && !showLoadInput && (
+          <div className="mt-5">
+            <div className="text-stone-400 text-xs mb-2">SAVED GAMES</div>
+            {saves.map((sv) => (
+              <div key={sv.slot} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-300 py-0.5">
+                <span className="min-w-0">
+                  {sv.name || "player"} · 🥚 {sv.eggs}/7{sv.eggs === 7 ? " (finished)" : ""}
+                  {sv.savedAt > 0 && (
+                    <span className="text-stone-400"> · {new Date(sv.savedAt).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                  )}
+                </span>
+                <button onClick={() => onRestore(sv.slot)} className="text-emerald-300 hover:underline">[ restore ]</button>
+                <button onClick={() => onDelete(sv.slot)} className="text-stone-400 hover:text-red-400">[ delete ]</button>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="mt-6 flex items-center justify-between gap-3">
           <div className="flex gap-2">
-            {hasSave && !showLoadInput && (
-              <button
-                onClick={onRestore}
-                className="px-4 py-2 border border-stone-600 text-stone-300 hover:bg-stone-800 text-sm"
-              >
-                [ restore save ]
-              </button>
-            )}
             {!showLoadInput && (
               <button
                 onClick={() => setShowLoadInput(true)}

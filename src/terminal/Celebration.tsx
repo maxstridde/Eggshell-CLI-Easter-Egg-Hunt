@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 
 // The one animation in the game (win only): a donut.c-style spinning egg,
-// then the chick. Monospace, monochrome; any key skips.
+// then the chick (which stays in the scrollback). Monospace, monochrome; any key skips.
 const W = 48;
 const H = 22;
 const SHADES = ".,-~:;=!*#$@";
-const SPIN_MS = 3200;
-const CHICK_MS = 1600;
+const SPIN_MS = 8000;
+const CHICK_MS = 2000; // 10 s in all
 
-const CHICK = [
+export const CHICK = [
   "",
   "",
   "",
@@ -84,7 +84,7 @@ export function Celebration({ onDone, cls }: { onDone: () => void; cls: string }
     };
   }, []);
 
-  const frame = t < SPIN_MS ? eggFrame(t / 300, 0.35 * Math.sin(t / 700)) : CHICK.join("\n");
+  const frame = t < SPIN_MS ? eggFrame(t / 400, 0.35 * Math.sin(t / 900)) : CHICK.join("\n");
   return (
     <div className={`whitespace-pre leading-tight ${cls}`}>
       {frame}

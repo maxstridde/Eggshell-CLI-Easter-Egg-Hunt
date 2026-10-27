@@ -9,7 +9,7 @@ import { EditorModal } from "./terminal/EditorModal";
 import { InlinePasswordForm } from "./terminal/InlinePasswordForm";
 import { MapPanel } from "./terminal/MapPanel";
 import { IntroModal } from "./terminal/IntroModal";
-import { Celebration } from "./terminal/Celebration";
+import { CHICK, Celebration } from "./terminal/Celebration";
 
 interface Line {
   text: string;
@@ -96,7 +96,10 @@ export default function App() {
   }, [state]);
   const endCelebration = () => {
     setCelebrating(false);
+    // the chick stays; the table sits right under it
+    CHICK.slice(2).forEach((l) => print(l, "text-yellow-300"));
     print("");
+    print("Your hunt vs. Hen's way", "text-emerald-300");
     print(parLine(totalCommands(state)), "text-yellow-300");
     statsLines(state).forEach((l, i) => print(l, i === 0 ? "text-emerald-300" : undefined));
   };

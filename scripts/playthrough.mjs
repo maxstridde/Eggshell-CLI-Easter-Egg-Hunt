@@ -98,6 +98,8 @@ try {
   await run("base64 -d c2VjcmV0LWVnZw==");
   await run("sudo edit /etc/privilege.cfg"); await password("secret-egg");
   await editReplace(/allow_admin\s*=\s*false/, "allow_admin = true");
+  await run("sudo cd /root"); await password("secret-egg");
+  check(/the egg in ~\/admin comes first/.test(await out()), "lock names the egg that comes first");
   await run("cat ~/admin/egg5.txt");
   await run("cd /root");
   check(/denied/i.test(await last()), "cd /root without sudo denied");
@@ -117,6 +119,7 @@ try {
   await run("cat /var/backups/.attic/2019/misc/egg7.txt");
   check(/any key to skip/.test(await page.content()), "win animation plays");
   await page.keyboard.press("Escape"); await page.waitForTimeout(100);
+  check(/made by MaxStridde\.de/.test(await out()) && /source code on GitHub/.test(await out()), "credits under the win table");
   check(/Hen's way: 23/.test(await out()) && /#7 The Investigator\s+\d+:\d\d\s+\d+\s+3/.test(await out()), "stats table on the last egg");
   await run("eggs");
   const bar = await page.locator("text=🥚").first().innerText();

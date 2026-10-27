@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { FsNode, GameState, initialState } from "./types";
 import { EGGS, buildFilesystem, lastLogin } from "./game/fs";
 import { GAME_COMMANDS, candidates, commands, completeInput, isClear } from "./game/commands";
-import { STAGES, activeStageIndex, countCommand, doorOpen, parLine, statsLines, tickHint, totalCommands } from "./game/stage";
+import { STAGES, activeStageIndex, countCommand, doorOpen, parLine, restoredLines, statsLines, tickHint, totalCommands } from "./game/stage";
 import { deleteSave, listSaves, loadSave, writeAutosave } from "./game/save";
 import { getTheme } from "./terminal/theme";
 import { EditorModal } from "./terminal/EditorModal";
@@ -15,6 +15,7 @@ interface Line {
   text: string;
   cls?: string;
   prompt?: string;
+  credits?: boolean; // the links under the win table
 }
 
 interface EditorState {
@@ -104,6 +105,7 @@ export default function App() {
     print(`${state.playerName ? `${state.playerName}'s hunt` : "Your hunt"} vs. Hen's way`, "text-emerald-300");
     print(parLine(totalCommands(state)), "text-yellow-300");
     statsLines(state).forEach((l, i) => print(l, i === 1 ? "text-emerald-300" : undefined));
+    setLines((prev) => [...prev, { text: "", credits: true }]);
   };
 
   // Grayscale (default_user set to anything unknown): say how to undo it.
@@ -128,11 +130,7 @@ export default function App() {
     return `player@eggshell:${where}${sym}`;
   };
 
-  const restored = (s: GameState) => {
-    const done = activeStageIndex(s) < 0;
-    print(`Save restored${s.playerName ? ` — welcome back, ${s.playerName}` : ""}. 🥚 ${s.eggsFound.length}/${EGGS.length}`, "text-emerald-300");
-    print(done ? "All eggs found. `eggs` shows your scorecard." : "`eggs` shows where you left off.", "text-stone-400");
-  };
+  const restored = (s: GameState) => restoredLines(s).forEach(([t, c]) => print(t, c));
 
   const runCommand = (raw: string) => {
     const trimmed = raw.trim();
@@ -301,7 +299,12 @@ export default function App() {
         >
           {lines.map((ln, i) => (
             <div key={i} className="whitespace-pre-wrap break-words select-text">
-              {ln.prompt ? (
+              {ln.credits ? (
+                <span className="text-stone-400">
+                  made by <a href="https://maxstridde.de/" target="_blank" rel="noopener" className="text-emerald-300 hover:underline">MaxStridde<span className="text-stone-400">.de</span></a>
+                  {"\n"}source code on <a href="https://github.com/maxstridde/Eggshell-CLI-Easter-Egg-Hunt" target="_blank" rel="noopener" className="text-emerald-300 hover:underline">GitHub</a>
+                </span>
+              ) : ln.prompt ? (
                 <span className={ln.cls ?? theme.prompt}>{ln.prompt}</span>
               ) : (
                 <span className={(ln.cls && theme.remap[ln.cls]) ?? ln.cls ?? theme.text}>{ln.text || " " /* empty lines keep their height */}</span>

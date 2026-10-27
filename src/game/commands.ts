@@ -1,6 +1,6 @@
 import { Difficulty, FsNode, GameState, initialState } from "../types";
 import { EGGS, ROOT_EGG, TIDY_EGG, fileContent, findNode, hasBackup, lockedAt, resolvePath } from "./fs";
-import { STAGES, activeStageIndex, hintExhausted, nextEggLine, recordHint, stageHint, statsLines } from "./stage";
+import { STAGES, activeStageIndex, hintExhausted, nextEggLine, recordHint, restoredLines, stageHint, statsLines } from "./stage";
 import { exportSave, importSave } from "./save";
 
 export interface CmdContext {
@@ -142,7 +142,11 @@ const DIFFICULTY_LEVELS: Difficulty[] = ["easy", "medium", "hard", "impossible"]
 function blocked(ctx: CmdContext, cmd: string, path: string, shown: string): boolean {
   const lock = lockedAt(ctx.root, path, ctx.state);
   if (lock) {
-    ctx.print(`${cmd}: ${shown}: ${lock} is locked`, "text-red-400");
+    // Door condition met, only an earlier egg missing: say which one comes first.
+    const missing = EGGS.find((e) => !ctx.state.eggsFound.includes(e));
+    const waits = missing && !lockedAt(ctx.root, path, { ...ctx.state, eggsFound: EGGS });
+    const where = missing?.slice(0, missing.lastIndexOf("/")).replace("/home/player", "~");
+    ctx.print(`${cmd}: ${shown}: ${lock} is locked${waits ? ` — the egg in ${where} comes first` : ""}`, "text-red-400");
     return true;
   }
   if ((path === "/root" || path.startsWith("/root/")) && !ctx.sudoActive && !ctx.state.rootEntered) {
@@ -281,6 +285,8 @@ export const commands: Record<string, CommandHandler> = {
     ctx.print("  ls               list what's in this folder");
     ctx.print("  cat README.txt   print a file to the screen");
     ctx.print("  help             every command you can use, and what its name means");
+    if (ctx.state.difficulty === "medium" || ctx.state.difficulty === "hard")
+      ctx.print("  map              show or hide the map of folders");
     ctx.print("");
     ctx.print("Tab completes commands and file names. Stuck? Type `hint` — ask again for more.", "text-stone-400");
   },
@@ -401,7 +407,7 @@ export const commands: Record<string, CommandHandler> = {
     }
     ctx.setState(() => result);
     ctx.setCwd("/home/player");
-    ctx.print("Save loaded. Welcome back!", "text-emerald-300");
+    restoredLines(result).forEach(([t, c]) => ctx.print(t, c));
   },
 
   eggs: (_, ctx) => {

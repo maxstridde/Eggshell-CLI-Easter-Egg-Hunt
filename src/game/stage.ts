@@ -189,6 +189,15 @@ const clock = (ms: number) => {
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
 };
 
+// Printed after a restore from the menu or `load <string>`.
+export function restoredLines(s: GameState): [string, string][] {
+  const done = activeStageIndex(s) < 0;
+  return [
+    [`Save restored${s.playerName ? ` — welcome back, ${s.playerName}` : ""}. 🥚 ${s.eggsFound.length}/${STAGES.length}`, "text-emerald-300"],
+    [done ? "All eggs found. `eggs` shows your scorecard." : "`eggs` shows where you left off.", "text-stone-400"],
+  ];
+}
+
 // The win table: time and commands per egg, against Hen's way.
 export function statsLines(s: GameState): string[] {
   const row = (name: string, time: string, n: number | string, hen: number | string) =>

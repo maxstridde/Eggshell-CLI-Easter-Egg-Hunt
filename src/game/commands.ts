@@ -418,7 +418,10 @@ export const commands: Record<string, CommandHandler> = {
     });
     const next = nextEggLine(ctx.state);
     if (next) ctx.print(next, "text-yellow-300");
-    if (activeStageIndex(ctx.state) < 0) statsLines(ctx.state).forEach((l, i) => ctx.print(l, i === 1 ? "text-emerald-300" : undefined));
+    if (activeStageIndex(ctx.state) < 0) {
+      statsLines(ctx.state).forEach((l, i) => ctx.print(l, i === 1 ? "text-emerald-300" : undefined));
+      ctx.print("", "credits"); // rendered as the links in App
+    }
   },
 
   ls: (allArgs, ctx) => {

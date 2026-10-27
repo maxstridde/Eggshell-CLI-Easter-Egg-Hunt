@@ -121,10 +121,10 @@ try {
   await page.keyboard.press("Escape"); await page.waitForTimeout(100);
   check(/made by MaxStridde\.de/.test(await out()) && /source code on GitHub/.test(await out()), "credits under the win table");
   check(/Hen's way: 23/.test(await out()) && /#7 The Investigator\s+\d+:\d\d\s+\d+\s+3/.test(await out()), "stats table on the last egg");
-  await run("eggs");
+  await run("clear"); await run("eggs");
   const bar = await page.locator("text=🥚").first().innerText();
   check(bar.includes("7/7"), `egg counter: ${bar.trim()}`);
-  check(/hatched/.test(await out()) && /#7 The Investigator/.test(await last()), "eggs shows the win and the scorecard");
+  check(/hatched/.test(await out()) && /#7 The Investigator/.test(await out()) && /made by MaxStridde\.de/.test(await out()), "eggs shows the win, the scorecard and the credits");
   await page.reload();
   check(/Tester · 🥚 7\/7 \(finished\)/.test(await page.content()), "menu lists the finished save");
   await page.getByText("[ enter shell ]").click();

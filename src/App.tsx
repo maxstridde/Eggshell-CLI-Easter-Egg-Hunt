@@ -15,7 +15,6 @@ interface Line {
   text: string;
   cls?: string;
   prompt?: string;
-  credits?: boolean; // the links under the win table
 }
 
 interface EditorState {
@@ -105,7 +104,7 @@ export default function App() {
     print(`${state.playerName ? `${state.playerName}'s hunt` : "Your hunt"} vs. Hen's way`, "text-emerald-300");
     print(parLine(totalCommands(state)), "text-yellow-300");
     statsLines(state).forEach((l, i) => print(l, i === 1 ? "text-emerald-300" : undefined));
-    setLines((prev) => [...prev, { text: "", credits: true }]);
+    print("", "credits");
   };
 
   // Grayscale (default_user set to anything unknown): say how to undo it.
@@ -299,7 +298,7 @@ export default function App() {
         >
           {lines.map((ln, i) => (
             <div key={i} className="whitespace-pre-wrap break-words select-text">
-              {ln.credits ? (
+              {ln.cls === "credits" /* the links under the win table */ ? (
                 <span className="text-stone-400">
                   made by <a href="https://maxstridde.de/" target="_blank" rel="noopener" className="text-emerald-300 hover:underline">MaxStridde<span className="text-stone-400">.de</span></a>
                   {"\n"}source code on <a href="https://github.com/maxstridde/Eggshell-CLI-Easter-Egg-Hunt" target="_blank" rel="noopener" className="text-emerald-300 hover:underline">GitHub</a>

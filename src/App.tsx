@@ -277,7 +277,7 @@ export default function App() {
               {ln.prompt ? (
                 <span className={ln.cls ?? theme.prompt}>{ln.prompt}</span>
               ) : (
-                <span className={(ln.cls && theme.remap[ln.cls]) ?? ln.cls ?? theme.text}>{ln.text}</span>
+                <span className={(ln.cls && theme.remap[ln.cls]) ?? ln.cls ?? theme.text}>{ln.text || " " /* empty lines keep their height */}</span>
               )}
             </div>
           ))}

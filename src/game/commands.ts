@@ -271,7 +271,7 @@ export const commands: Record<string, CommandHandler> = {
   hint: (args, ctx) => {
     const { difficulty } = ctx.state;
     if (difficulty === "impossible") {
-      ctx.print("hint: access denied on impossible difficulty — `difficulty easy` brings hints back, any time", "text-red-400");
+      ctx.print("hint: access denied on impossible difficulty — changing the difficulty brings hints back, any time", "text-red-400");
       return;
     }
 

@@ -526,9 +526,9 @@ Oct 26 08:00:01 eggshell systemd[1]: systemd-tmpfiles-clean.service: Succeeded.
 Oct 26 08:17:44 eggshell kernel: [13544.108] audit: type=1400 apparmor="ALLOWED" profile="lsb_release"
 Oct 26 08:30:00 eggshell systemd[1]: Starting Rotate log files...
 Oct 26 08:30:01 eggshell systemd[1]: logrotate.service: Succeeded.
-Oct 27 16:51:53 eggshell easterd[312]: sweep complete — one asset still unaccounted for
-Oct 27 16:52:53 eggshell easterd[312]: relocating egg #7 into /var/backups — deep down, where nobody looks
-Oct 27 16:52:53 eggshell easterd[312]: egg #7 labelled golden-yolk. nobody reads the logs anyway.
+Oct 27 16:56:15 eggshell easterd[312]: sweep complete — one asset still unaccounted for
+Oct 27 16:57:15 eggshell easterd[312]: relocating egg #7 into /var/backups — deep down, where nobody looks
+Oct 27 16:57:15 eggshell easterd[312]: egg #7 labelled golden-yolk. nobody reads the logs anyway.
 ```
 
 ### /var/backups/.attic/2019/misc/egg7.txt

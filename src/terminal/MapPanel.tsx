@@ -1,6 +1,6 @@
 import React from "react";
 import { GameState, FsNode } from "../types";
-import { findNode } from "../game/fs";
+import { EGGS, findNode } from "../game/fs";
 
 export function MapPanel({ state, root, cwd, mobile }: { state: GameState; root: FsNode; cwd: string; mobile?: boolean }) {
   const homeNode = findNode(root, "/home/player");
@@ -33,11 +33,12 @@ export function MapPanel({ state, root, cwd, mobile }: { state: GameState; root:
   };
 
   // User-created items directly inside a path.
+  // Eggs created by an action (tidy, unzip) are Hen's, so they don't count as the player's.
   const getUserChildren = (parentPath: string) =>
     state.userCreated.filter((u) => {
       const parent = u.path.split("/").slice(0, -1).join("/") || "/";
       return parent === parentPath;
-    });
+    }).map((u) => ({ ...u, mine: !EGGS.includes(u.path) }));
 
   // User-created dirs directly inside /home/player.
   const userHomeDirs = state.userCreated.filter((u) => {
@@ -62,7 +63,7 @@ export function MapPanel({ state, root, cwd, mobile }: { state: GameState; root:
   ];
 
   // Renders files + subdirs for a visited directory.
-  // baseIndent is the vertical-bar prefix carried from the parent (e.g. "│   " or "").
+  // baseIndent is the vertical-bar prefix carried from the parent (e.g. "│  " or "").
   // Subdirs that have been visited are expanded one level deeper (no further recursion).
   const renderDirContents = (dirPath: string, baseIndent: string) => {
     if (!isVisited(dirPath)) return null;
@@ -75,7 +76,7 @@ export function MapPanel({ state, root, cwd, mobile }: { state: GameState; root:
       ...fsDirs.map((d) => ({ name: d, isUser: false, isDir: true, path: `${dirPath}/${d}` })),
       ...userChildren.map((u) => ({
         name: u.path.split("/").pop()!,
-        isUser: true,
+        isUser: u.mine,
         isDir: u.type === "dir",
         path: u.path,
       })),
@@ -98,12 +99,12 @@ export function MapPanel({ state, root, cwd, mobile }: { state: GameState; root:
 
       // Expand visited subdirs one level deeper.
       if (item.isDir && isVisited(item.path)) {
-        const childIndent = baseIndent + (isLast ? "    " : "│   ");
+        const childIndent = baseIndent + (isLast ? "   " : "│  ");
         const { files: childFiles } = getFsChildren(item.path);
         const childUserItems = getUserChildren(item.path);
         const childItems = [
           ...childFiles.map((f) => ({ name: f, isUser: false })),
-          ...childUserItems.map((u) => ({ name: u.path.split("/").pop()!, isUser: true })),
+          ...childUserItems.map((u) => ({ name: u.path.split("/").pop()!, isUser: u.mine })),
         ].slice(0, 4);
 
         childItems.forEach((child, ci) => {
@@ -123,8 +124,8 @@ export function MapPanel({ state, root, cwd, mobile }: { state: GameState; root:
 
   return (
     <div className={mobile
-      ? "w-full bg-stone-950 px-3 py-3 text-xs font-mono overflow-y-auto relative"
-      : `w-48 shrink-0 border-l border-stone-800 bg-stone-950 px-3 py-3 text-xs font-mono overflow-y-auto relative ${state.difficulty === "easy" ? "group" : ""}`
+      ? "w-full bg-stone-950 px-3 py-3 text-xs font-mono whitespace-pre overflow-y-auto relative"
+      : `w-56 shrink-0 border-l border-stone-800 bg-stone-950 px-3 py-3 text-xs font-mono whitespace-pre overflow-y-auto relative ${state.difficulty === "easy" ? "group" : ""}`
     }>
       {/* Hover tooltip — easy mode only, desktop only */}
       {!mobile && state.difficulty === "easy" && (
@@ -139,14 +140,15 @@ export function MapPanel({ state, root, cwd, mobile }: { state: GameState; root:
 
       {!mobile && <div className="text-stone-600 mb-2">[ MAP ]</div>}
 
-      {/* /home/player — highlighted only when cwd is exactly /home/player */}
-      <div className={isCurrent("/home/player") ? "text-emerald-300" : "text-stone-400"}>
-        /home/player
+      {/* /home, then player/ (~) as its one subfolder — highlighted only when cwd is exactly there */}
+      <div className={isCurrent("/home") ? "text-emerald-300" : "text-stone-400"}>/home</div>
+      <div className={`pl-1 ${isCurrent("/home/player") ? "text-emerald-300" : "text-stone-400"}`}>
+        └─ player/ (~)
       </div>
 
       {/* Subdirs of /home/player */}
       {allHomeDirs.map((d, idx) => {
-        const isLast = idx === allHomeDirs.length - 1 && !state.visited.includes("/etc");
+        const isLast = idx === allHomeDirs.length - 1;
         const active = isCurrent(d.path);
         const cls = active
           ? "text-emerald-300"
@@ -159,9 +161,9 @@ export function MapPanel({ state, root, cwd, mobile }: { state: GameState; root:
         return (
           <div key={d.path}>
             <div className={`pl-1 ${cls}`}>
-              {conn} {d.name}/{d.locked ? " [locked]" : ""}
+              {"   "}{conn} {d.name}/{d.locked ? " [locked]" : ""}
             </div>
-            {!d.locked && renderDirContents(d.path, isLast ? "    " : "│   ")}
+            {!d.locked && renderDirContents(d.path, isLast ? "      " : "   │  ")}
           </div>
         );
       })}

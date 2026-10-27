@@ -84,7 +84,13 @@ try {
   check(/denied/i.test(await last()), "cd /root without sudo denied");
   await run("sudo cd /root"); await password("secret-egg");
   await run("unzip egg6.zip"); await run("cat egg6.txt");
-  await run("grep -r egg /var/log"); await run("cat /var/backups/egg7.txt");
+  await run("ls /var/backups");
+  check(!/attic/.test(await last()), "plain ls hides .attic");
+  await run("grep -r egg /var/log"); await run("grep -r golden-yolk /var/backups");
+  check(/\/var\/backups\/\.attic\/2019\/misc\/egg7\.txt:label: golden-yolk/.test(await out()), "grep finds the hidden egg 7");
+  await run("cat /var/backups/egg7_FINAL.txt");
+  check(/Not this one/.test(await last()), "decoy is not an egg");
+  await run("cat /var/backups/.attic/2019/misc/egg7.txt");
   check(/Hen's way: 21/.test(await last()), "command count on the last egg");
   await run("eggs");
   const bar = await page.locator("text=🥚").first().innerText();

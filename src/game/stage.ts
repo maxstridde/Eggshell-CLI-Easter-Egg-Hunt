@@ -140,9 +140,9 @@ export const STAGES: StageDef[] = [
     name: "The Investigator",
     goal: "Find out where the last egg went.",
     hints: [
-      "Something wrote to the system logs in /var/log. Which log mentions an egg?",
-      "Don't read logs line by line — search them. `grep <word> <file>` prints matching lines; -r searches a whole folder.",
-      "`grep -r egg /var/log`, then `cat` the path it shows.",
+      "Something wrote to the system logs in /var/log. Which log mentions an egg — and what did it do with it?",
+      "Don't read logs or backups file by file — search them. `grep <word> <file>` prints matching lines; -r searches a whole folder. The log gives you a word to search for.",
+      "`grep -r egg /var/log`, then `grep -r golden-yolk /var/backups`, then `cat` the path it shows.",
     ],
     gate: (s) => !hasEgg(s, 7),
   },

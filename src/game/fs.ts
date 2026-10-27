@@ -57,7 +57,7 @@ export const EGGS = [
   "/home/player/vault/egg4.txt",
   "/home/player/admin/egg5.txt",
   "/root/egg6.txt", // created by unzip (userCreated)
-  "/var/backups/egg7.txt",
+  "/var/backups/.attic/2019/misc/egg7.txt", // hidden, three folders deep: found by grep, not by looking
 ];
 
 export const hasEgg = (s: GameState, n: number) => s.eggsFound.includes(EGGS[n - 1]);
@@ -362,8 +362,8 @@ export function buildFilesystem(): FsNode {
             sysDay(-1) + " 08:30:01 eggshell systemd[1]: logrotate.service: Succeeded.\n" +
             // ponytail: easterd ran "just now" (read time), so the time moves on re-read
             `${stamp(-2)} eggshell easterd[312]: sweep complete — one asset still unaccounted for\n` +
-            `${stamp(-1)} eggshell easterd[312]: relocating asset to /var/backups/egg7.txt\n` +
-            `${stamp(-1)} eggshell easterd[312]: asset secured. nobody reads the logs anyway.\n`
+            `${stamp(-1)} eggshell easterd[312]: relocating egg #7 into /var/backups — deep down, where nobody looks\n` +
+            `${stamp(-1)} eggshell easterd[312]: egg #7 labelled golden-yolk. nobody reads the logs anyway.\n`
         ),
         file(
           "dpkg.log",
@@ -377,16 +377,50 @@ export function buildFilesystem(): FsNode {
             isoDay(-2) + " 22:11:32 status installed tree:amd64 2.1.0-1\n"
         ),
       ]),
+      // A mess on purpose: decoys named like eggs, so only a search finds the real one.
       dir("backups", [
-        file(
+        file("egg.md", "# egg\nTemplate for egg texts. Not an egg.\n"),
+        file("egg2.txt", "Backup of egg #2. You already have this one.\n"),
+        file("egg7_v1.txt", "egg #7, first draft. Too easy to find. Moved it.  — Hen\n"),
+        file("egg7_FINAL.txt", "egg #7, final version.\nNot this one either. FINAL never means final.\n"),
+        file("egg7_FINAL_v2.txt", "(empty draft)\n"),
+        file("eggs.tar.gz.part", "[incomplete archive — download interrupted]\n"),
+        file("passwd.bak", "root:x:0:0:root:/root:/bin/bash\nhen:x:1000:1000:Hen:/home/hen:/bin/bash\n"),
+        dir("old-configs", [
+          file("hosts.1998", "127.0.0.1  localhost\n10.0.0.1   rooster-box\n"),
+          file("rooster-1998.txt",
+            "Note from Rooster, admin before Hen, 1998:\n" +
+              "I hid one egg on this box too. Never found it again.\n" +
+              "If you ever do: I still owe Hen 5 marks.\n"),
+        ]),
+        dir("home-hen", [
+          file("grocery.txt", "- milk\n- bread\n- eggs (ironic)\n- new admin (done)\n"),
+          file("todo.txt", "- write README for the new admin\n- hide 7 eggs\n- retire\n"),
+        ]),
+        dir("photos", [
+          file("chicken.txt",
+            "   \\\\\n" +
+              "   (o>\n" +
+              "\\\\_//)\n" +
+              " \\_/_)\n" +
+              "  _|_\n" +
+              "\n" +
+              "The chicken came first. This file is older than every egg.\n"),
+        ]),
+        dir(".attic", [
+          dir("2019", [
+            dir("misc", [
+              file(
           "egg7.txt",
           "🥚 EGG #7 of 7 — The Investigator\n" +
-            "You didn't read the logs. You searched them.\n" +
+            "label: golden-yolk\n" +
+            "You didn't read the logs, and you didn't dig through the mess. You searched.\n" +
             "\n" +
             "grep stands for \"global regular expression print\": it prints every\n" +
             "line that matches. The same move finds real problems:\n" +
             "  grep error app.log                    lines containing \"error\"\n" +
             "  grep -r \"Failed password\" /var/log    search a whole folder\n" +
+            "It found me in a hidden folder, three levels down. Searching beats looking.\n" +
             "\n" +
             "That's all seven. You've hatched — the shell is yours now.\n" +
             "\n" +
@@ -397,7 +431,10 @@ export function buildFilesystem(): FsNode {
             "Almost everything you typed here works there unchanged — except wifi and edit.\n" +
             "\n" +
             "Thank you for playing.  — Hen\n"
-        ),
+              ),
+            ]),
+          ]),
+        ]),
       ]),
     ], {
       locked: (s) => !upTo(s, 6),

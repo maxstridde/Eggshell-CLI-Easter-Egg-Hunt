@@ -60,7 +60,8 @@ function deserializeState(data: Record<string, unknown>): GameState {
     edits: (data.edits as Record<string, string>) ?? {},
     userCreated: (data.userCreated as GameState["userCreated"]) ?? initialState.userCreated,
     sudoTries: (data.sudoTries as number) ?? 0,
-    stats: (data.stats as GameState["stats"]) ?? initialState.stats,
+    // ponytail: pad to 7 per-egg entries, saves from earlier builds may hold fewer
+    stats: initialState.stats.map((e, i) => ({ ...e, ...(data.stats as GameState["stats"] | undefined)?.[i] })),
     helpSeen: (data.helpSeen as number) ?? 0,
     difficulty: (data.difficulty as Difficulty) ?? "easy",
     terminalUser: (data.terminalUser as TerminalUser) ?? "player",

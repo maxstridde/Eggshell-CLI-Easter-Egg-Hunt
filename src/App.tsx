@@ -2,13 +2,14 @@ import React, { useEffect, useRef, useState } from "react";
 import { FsNode, GameState, initialState } from "./types";
 import { EGGS, buildFilesystem, lastLogin } from "./game/fs";
 import { candidates, commands, completeInput, isClear } from "./game/commands";
-import { STAGES, activeStageIndex, countCommand, doorOpen, tickHint } from "./game/stage";
+import { STAGES, activeStageIndex, countCommand, doorOpen, parLine, statsLines, tickHint, totalCommands } from "./game/stage";
 import { loadAutosave, writeAutosave } from "./game/save";
 import { getTheme } from "./terminal/theme";
 import { EditorModal } from "./terminal/EditorModal";
 import { InlinePasswordForm } from "./terminal/InlinePasswordForm";
 import { MapPanel } from "./terminal/MapPanel";
 import { IntroModal } from "./terminal/IntroModal";
+import { Celebration } from "./terminal/Celebration";
 
 interface Line {
   text: string;
@@ -42,6 +43,7 @@ export default function App() {
   const [sudoActive, setSudoActive] = useState(false);
   const [hasSave] = useState<boolean>(() => loadAutosave() !== null);
   const [mobileMapOpen, setMobileMapOpen] = useState(false);
+  const [celebrating, setCelebrating] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -85,6 +87,20 @@ export default function App() {
     door.current = { idx, open };
   }, [state]);
 
+  // The win: armed by reading the last egg, shown once the stats include that command.
+  const winPending = useRef(false);
+  useEffect(() => {
+    if (!winPending.current || activeStageIndex(state) >= 0) return;
+    winPending.current = false;
+    setCelebrating(true);
+  }, [state]);
+  const endCelebration = () => {
+    setCelebrating(false);
+    print("");
+    print(parLine(totalCommands(state)), "text-yellow-300");
+    statsLines(state).forEach((l, i) => print(l, i === 0 ? "text-emerald-300" : undefined));
+  };
+
   // Grayscale (default_user set to anything unknown): say how to undo it.
   const prevUser = useRef(state.terminalUser);
   useEffect(() => {
@@ -95,7 +111,7 @@ export default function App() {
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [lines, editor, inlinePrompt]);
+  }, [lines, editor, inlinePrompt, celebrating]);
 
   const print = (text: string, cls?: string) => {
     setLines((prev) => [...prev, { text, cls }]);
@@ -120,7 +136,7 @@ export default function App() {
     setLines((prev) => [...prev, { text: "", prompt: `${prompt()} ${trimmed}` }]);
 
     const [cmd, ...args] = trimmed.split(/\s+/);
-    setState(countCommand);
+    setState((s) => countCommand(s));
     if (cmd !== "hint") setState(tickHint);
 
     // Auto-nudge (easy/medium): after 3 failing commands in a row, point at `hint`.
@@ -140,6 +156,7 @@ export default function App() {
       print: report,
       openEditor: (path, initial, onSave) => setEditor({ path, initial, onSave }),
       openMenu: () => setShowIntro(true),
+      celebrate: () => (winPending.current = true),
       sudoActive,
       setSudoActive,
       passwordPrompt: (onSubmit, title, onCancel) =>
@@ -202,8 +219,8 @@ export default function App() {
   const ghost = completedLine?.startsWith(input) ? completedLine.slice(input.length) : "";
 
   useEffect(() => {
-    if (!editor && !inlinePrompt) inputRef.current?.focus();
-  }, [editor, inlinePrompt]);
+    if (!editor && !inlinePrompt && !celebrating) inputRef.current?.focus();
+  }, [editor, inlinePrompt, celebrating]);
 
   useEffect(() => {
     if (!mobileMapOpen) return;
@@ -280,7 +297,9 @@ export default function App() {
             />
           )}
 
-          {!editor && !inlinePrompt && !showIntro && (
+          {celebrating && <Celebration onDone={endCelebration} cls={theme.remap["text-yellow-300"] ?? "text-yellow-300"} />}
+
+          {!editor && !inlinePrompt && !showIntro && !celebrating && (
             <form onSubmit={onSubmit} className="flex items-center gap-2">
               <span className={`${theme.prompt} shrink-0`}>
                 <span className="sm:hidden">{cwd === "/home/player" ? "~" : cwd}{sudoActive ? "#" : "$"}</span>

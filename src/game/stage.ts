@@ -158,21 +158,47 @@ export const doorOpen = (idx: number, s: GameState) => !!STAGES[idx]?.opened?.(s
 // `eggs` / top bar: the objective for the egg being hunted, per difficulty.
 export function nextEggLine(s: GameState): string {
   const idx = activeStageIndex(s);
-  if (idx < 0) return `🏆 All seven eggs found. You've hatched.\n${parLine(s.commands)}`;
+  if (idx < 0) return `🏆 All seven eggs found. You've hatched.\n${parLine(totalCommands(s))}`;
   if (s.difficulty === "impossible") return "";
   const st = STAGES[idx];
   const head = `Next: #${idx + 1} ${st.name}`;
   return s.difficulty === "hard" ? head : `${head} — ${st.goal}`;
 }
 
-// Win screen score, learnGitBranching-style: commands typed vs. the README solution.
-export const HEN_WAY = 21;
+// Win screen score, learnGitBranching-style: commands typed vs. the README solution, per egg.
+export const HEN_WAY_PER_EGG = [3, 3, 5, 3, 3, 3, 3];
+export const HEN_WAY = HEN_WAY_PER_EGG.reduce((a, b) => a + b);
+export const totalCommands = (s: GameState) => s.stats.reduce((a, e) => a + e.commands, 0);
 export const parLine = (n: number) =>
   `You used ${n} commands (Hen's way: ${HEN_WAY}).` + (n <= HEN_WAY ? " Hen is impressed." : "");
 
-// Counts a typed command while an egg is still being hunted.
-export const countCommand = (s: GameState): GameState =>
-  activeStageIndex(s) < 0 ? s : { ...s, commands: s.commands + 1 };
+// ponytail: idle gaps count at most 2 min, so a break (or a save resumed tomorrow) doesn't inflate time
+const IDLE_CAP = 120_000;
+
+// Counts a typed command, and the time since the previous one, for the egg being hunted.
+export const countCommand = (s: GameState, now = Date.now()): GameState => {
+  const idx = activeStageIndex(s);
+  if (idx < 0) return s;
+  const dt = s.lastAt ? Math.min(now - s.lastAt, IDLE_CAP) : 0;
+  const stats = s.stats.map((e, i) => (i === idx ? { commands: e.commands + 1, ms: e.ms + dt } : e));
+  return { ...s, stats, lastAt: now };
+};
+
+const clock = (ms: number) => {
+  const sec = Math.round(ms / 1000);
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+};
+
+// The win table: time and commands per egg, against Hen's way.
+export function statsLines(s: GameState): string[] {
+  const row = (name: string, time: string, n: number | string, hen: number | string) =>
+    `${name.padEnd(24)}${time.padStart(7)}${String(n).padStart(10)}${String(hen).padStart(7)}`;
+  return [
+    row("egg", "time", "commands", "Hen"),
+    ...STAGES.map((st, i) => row(`#${i + 1} ${st.name}`, clock(s.stats[i].ms), s.stats[i].commands, HEN_WAY_PER_EGG[i])),
+    row("total", clock(s.stats.reduce((a, e) => a + e.ms, 0)), totalCommands(s), HEN_WAY),
+  ];
+}
 
 // --- Hint escalation --------------------------------------------------------
 // Repeated asks climb tiers 1→3, capped by difficulty. The counter belongs to

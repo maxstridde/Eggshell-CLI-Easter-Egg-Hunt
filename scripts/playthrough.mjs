@@ -91,7 +91,9 @@ try {
   await run("cat /var/backups/egg7_FINAL.txt");
   check(/Not this one/.test(await last()), "decoy is not an egg");
   await run("cat /var/backups/.attic/2019/misc/egg7.txt");
-  check(/Hen's way: 21/.test(await last()), "command count on the last egg");
+  check(/any key to skip/.test(await page.content()), "win animation plays");
+  await page.keyboard.press("Escape"); await page.waitForTimeout(100);
+  check(/Hen's way: 23/.test(await out()) && /#7 The Investigator\s+\d+:\d\d\s+\d+\s+3/.test(await out()), "stats table on the last egg");
   await run("eggs");
   const bar = await page.locator("text=🥚").first().innerText();
   check(bar.includes("7/7"), `egg counter: ${bar.trim()}`);

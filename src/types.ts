@@ -45,7 +45,9 @@ export interface GameState {
   // Hint escalation for the current situation (stage + sub-step). Not saved:
   // resets on load, on difficulty change, and whenever `key` changes.
   hint: { key: string; asks: number; since: number };
-  commands: number; // commands typed while hunting (frozen at the win)
+  // Per egg: commands typed and active time while hunting it (frozen at the win).
+  stats: { commands: number; ms: number }[];
+  lastAt: number; // time of the previous command, for `stats` ms; not saved
   helpSeen: number; // stage `help` was last shown at; later entries are marked new
 }
 
@@ -75,6 +77,7 @@ export const initialState: GameState = {
   visited: ["/home/player"],
   mapVisible: false,
   hint: { key: "", asks: 0, since: 0 },
-  commands: 0,
+  stats: Array.from({ length: 7 }, () => ({ commands: 0, ms: 0 })),
+  lastAt: 0,
   helpSeen: 0,
 };

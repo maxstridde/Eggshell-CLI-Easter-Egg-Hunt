@@ -63,6 +63,12 @@ const HELP_ENTRIES: HelpEntry[] = [
 // Hidden aliases: work, but stay out of `help` and Tab completion.
 const HIDDEN = ["quit", "exit", "stage", "vi", "cls"];
 
+// Game commands (not shell): they stay out of the win stats. "save / load <string>" → save, load.
+export const GAME_COMMANDS = new Set([
+  ...HELP_ENTRIES.filter((e) => e.game).flatMap((e) => e.cmd.split(" ").filter((w) => /^[a-z]+$/.test(w))),
+  "quit", "exit", "stage",
+]);
+
 const IMPOSSIBLE_HELP_TEXT = `Commands available on impossible difficulty:
   help                     this message  (help all shows everything)
   difficulty <level>       change difficulty (you can leave impossible any time)

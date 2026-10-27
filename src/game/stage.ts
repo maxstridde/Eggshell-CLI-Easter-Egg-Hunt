@@ -193,10 +193,13 @@ const clock = (ms: number) => {
 export function statsLines(s: GameState): string[] {
   const row = (name: string, time: string, n: number | string, hen: number | string) =>
     `${name.padEnd(24)}${time.padStart(7)}${String(n).padStart(10)}${String(hen).padStart(7)}`;
+  const rule = "─".repeat(48);
   return [
+    rule,
     row("egg", "time", "commands", "Hen"),
     ...STAGES.map((st, i) => row(`#${i + 1} ${st.name}`, clock(s.stats[i].ms), s.stats[i].commands, HEN_WAY_PER_EGG[i])),
     row("total", clock(s.stats.reduce((a, e) => a + e.ms, 0)), totalCommands(s), HEN_WAY),
+    rule,
   ];
 }
 

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { FsNode, GameState, initialState } from "./types";
 import { EGGS, buildFilesystem, lastLogin } from "./game/fs";
-import { candidates, commands, completeInput, isClear } from "./game/commands";
+import { GAME_COMMANDS, candidates, commands, completeInput, isClear } from "./game/commands";
 import { STAGES, activeStageIndex, countCommand, doorOpen, parLine, statsLines, tickHint, totalCommands } from "./game/stage";
 import { loadAutosave, writeAutosave } from "./game/save";
 import { getTheme } from "./terminal/theme";
@@ -101,7 +101,7 @@ export default function App() {
     print("");
     print("Your hunt vs. Hen's way", "text-emerald-300");
     print(parLine(totalCommands(state)), "text-yellow-300");
-    statsLines(state).forEach((l, i) => print(l, i === 0 ? "text-emerald-300" : undefined));
+    statsLines(state).forEach((l, i) => print(l, i === 1 ? "text-emerald-300" : undefined));
   };
 
   // Grayscale (default_user set to anything unknown): say how to undo it.
@@ -139,7 +139,7 @@ export default function App() {
     setLines((prev) => [...prev, { text: "", prompt: `${prompt()} ${trimmed}` }]);
 
     const [cmd, ...args] = trimmed.split(/\s+/);
-    setState((s) => countCommand(s));
+    if (!GAME_COMMANDS.has(cmd)) setState((s) => countCommand(s));
     if (cmd !== "hint") setState(tickHint);
 
     // Auto-nudge (easy/medium): after 3 failing commands in a row, point at `hint`.

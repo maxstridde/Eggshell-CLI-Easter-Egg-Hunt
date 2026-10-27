@@ -34,9 +34,9 @@ Branch: `finish-polish`. Small unsigned commits per step.
 
 ## Work items
 
+- [ ] You play `npm run preview` → merge to main → deploy
 - [x] `scripts/story.mjs` → `docs/STORY.md`
 - [x] CLAUDE.md updated
-- [ ] You play `npm run preview` → merge to main → deploy
 - [x] Ghost-text autocomplete (→ / Tab accepts, double Tab lists candidates); mention in start/help/intro
 - [x] Ship: vite base `./`, deploy.yml stray quote, package name, index.html egg count + og:url
 - [x] README: minimal solution; MIT LICENSE
@@ -51,6 +51,7 @@ Branch: `finish-polish`. Small unsigned commits per step.
 
 ## Playtest 1 (2026-10-27) → fixes
 
+- [ ] Playtest 3 → merge to main → deploy
 - [x] Intro "onFriday" space; Enter on empty line prints a prompt; empty lines keep height
 - [x] `difficulty` / `man` argument completion; `/root` contents not completed before entering
 - [x] Egg 2: riddle says ~ itself (not documents); permission error explains only ~ is writable
@@ -63,7 +64,6 @@ Branch: `finish-polish`. Small unsigned commits per step.
 - [x] Per-egg time/commands vs. Hen's way; ASCII win celebration
 - [x] schema.org JSON-LD enriched
 - [x] Playtest 2 (2026-10-27) → fixes, see below
-- [ ] Playtest 3 → merge to main → deploy
 
 ## Playtest 2 (2026-10-27) → fixes
 
@@ -86,9 +86,9 @@ Its teaching model: each level opens with a short concept dialog, then the task.
 Already matching here: state-based wins (locks check state, not typed commands), objective (`eggs`), concept framing (every egg plus Hen's pointer), and in-world refusals instead of "command not found".
 
 Suggestions (both adopted 2026-10-27):
+- [ ] **Replay the solution (`hint` tier 3 as typed commands).** Skip: it spoils the doing.
 - [x] **Confirm before the exact tier.** The first time the tier with the exact commands is reached, print "The next hint is the exact answer. Type `hint` again if you want it." This fits "hints only after trying". Effort S.
 - [x] **Command count on the win.** Print "You used N commands (Hen's way: 21)". It adds replay value. Effort S.
-- [ ] **Replay the solution (`hint` tier 3 as typed commands).** Skip: it spoils the doing.
 
 Not copied: goal graph and animations (monochrome CLI rule), level select/sandbox/builder (one world), i18n machinery, and a free solution reveal (the egg text is the reward).
 

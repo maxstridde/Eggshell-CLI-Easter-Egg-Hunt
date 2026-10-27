@@ -46,6 +46,7 @@ export interface GameState {
   // resets on load, on difficulty change, and whenever `key` changes.
   hint: { key: string; asks: number; since: number };
   commands: number; // commands typed while hunting (frozen at the win)
+  helpSeen: number; // stage `help` was last shown at; later entries are marked new
 }
 
 export const initialState: GameState = {
@@ -73,4 +74,5 @@ export const initialState: GameState = {
   mapVisible: false,
   hint: { key: "", asks: 0, since: 0 },
   commands: 0,
+  helpSeen: 0,
 };

@@ -212,7 +212,13 @@ export const commands: Record<string, CommandHandler> = {
     const idx = activeStageIndex(ctx.state);
     const level = showAll || idx < 0 ? 99 : idx;
     const visible = HELP_ENTRIES.filter((e) => e.minStage <= level);
-    const row = (e: HelpEntry) => ctx.print(`  ${e.cmd.padEnd(28)} ${e.desc}`);
+    // Joined since the last `help`: another colour plus a text tag (colour-blind safe).
+    const isNew = (e: HelpEntry) => e.minStage > ctx.state.helpSeen && level !== 99;
+    const row = (e: HelpEntry) =>
+      isNew(e)
+        ? ctx.print(`  ${e.cmd.padEnd(28)} ${e.desc}  ← new`, "text-yellow-300")
+        : ctx.print(`  ${e.cmd.padEnd(28)} ${e.desc}`);
+    if (level !== 99 && level > ctx.state.helpSeen) ctx.setState((s) => ({ ...s, helpSeen: level }));
     ctx.print("Shell commands:", "text-emerald-300");
     visible.filter((e) => !e.game).forEach(row);
     ctx.print("");

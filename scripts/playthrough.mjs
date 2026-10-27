@@ -58,6 +58,10 @@ try {
   check(/secrets just unlocked/.test(await last()), "door announcement after touch");
   await run("cat ~/secrets/egg2.txt");
   check(/new commands/.test(await last()), "new-commands nudge after egg 2");
+  await run("help");
+  check(/rm <file\.\.\.>.*← new/.test(await out()) && !/ls \[path\].*← new/.test(await out()), "help marks rm as new, ls not");
+  await run("clear"); await run("help");
+  check(!/← new/.test(await out()), "second help: nothing new");
   await run("cd ~/secrets"); await run("rm report.txt");
   check(/still needed/.test(await last()), "rm report.txt refused");
   await run("rm *.tmp"); await run("mv report.txt ~/documents/");

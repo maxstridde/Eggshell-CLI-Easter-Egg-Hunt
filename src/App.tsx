@@ -85,6 +85,14 @@ export default function App() {
     door.current = { idx, open };
   }, [state]);
 
+  // Grayscale (default_user set to anything unknown): say how to undo it.
+  const prevUser = useRef(state.terminalUser);
+  useEffect(() => {
+    if (state.terminalUser === "other" && prevUser.current !== "other")
+      print("The colours are gone. Set default_user back to player in /etc/privilege.cfg to bring them back.", "text-stone-400");
+    prevUser.current = state.terminalUser;
+  }, [state.terminalUser]);
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [lines, editor, inlinePrompt]);
@@ -233,7 +241,7 @@ export default function App() {
           )}
           <span>🥚 {found}/{totalEggs}</span>
           {state.difficulty !== "impossible" && activeStageIndex(state) >= 0 && (
-            <span className="hidden sm:inline">· next: <span className="text-yellow-300">{STAGES[activeStageIndex(state)].name}</span></span>
+            <span className="hidden sm:inline">· next: <span className={theme.remap["text-yellow-300"] ?? "text-yellow-300"}>{STAGES[activeStageIndex(state)].name}</span></span>
           )}
         </div>
       </div>
@@ -252,7 +260,7 @@ export default function App() {
               {ln.prompt ? (
                 <span className={ln.cls ?? theme.prompt}>{ln.prompt}</span>
               ) : (
-                <span className={ln.cls ?? theme.text}>{ln.text}</span>
+                <span className={(ln.cls && theme.remap[ln.cls]) ?? ln.cls ?? theme.text}>{ln.text}</span>
               )}
             </div>
           ))}

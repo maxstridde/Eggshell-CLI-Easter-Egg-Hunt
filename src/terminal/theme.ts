@@ -7,6 +7,8 @@ export type Theme = {
   caret: string;
   input: string;
   filter: string;
+  // Line colours swapped under this theme, so accents never blend into the text.
+  remap: Record<string, string>;
 };
 
 export function getTheme(terminalUser: TerminalUser): Theme {
@@ -19,6 +21,8 @@ export function getTheme(terminalUser: TerminalUser): Theme {
         caret: "caret-amber-300",
         input: "text-amber-100",
         filter: "",
+        // headings/success go white, announcements sky: three distinct colours on amber
+        remap: { "text-emerald-300": "text-white", "text-yellow-300": "text-sky-300" },
       };
     case "other":
       return {
@@ -28,6 +32,7 @@ export function getTheme(terminalUser: TerminalUser): Theme {
         caret: "caret-zinc-300",
         input: "text-zinc-200",
         filter: "grayscale",
+        remap: {},
       };
     default:
       return {
@@ -37,6 +42,7 @@ export function getTheme(terminalUser: TerminalUser): Theme {
         caret: "caret-emerald-300",
         input: "text-emerald-100",
         filter: "",
+        remap: {},
       };
   }
 }

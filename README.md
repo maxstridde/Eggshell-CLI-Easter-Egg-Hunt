@@ -25,7 +25,7 @@ Reading an `eggN.txt` with `cat` collects it. Win = all 7.
 - `help` reveals commands progressively, with the meaning of each name. `man <cmd>` explains one in detail.
 - `hint` escalates in 3 tiers (nudge, direction, exact commands), capped by difficulty: easy 3, medium 2, hard 1, impossible none. Before the exact answer it asks once more. Change with `difficulty <level>`.
 - Autocomplete: a grey suggestion follows your typing; Tab or → accepts, a second Tab lists all matches. `nano` and `vim` are aliases of `edit`.
-- The win screen compares your command count with Hen's way (21 commands, the solution below).
+- After a short ASCII celebration, the win screen shows time and commands per egg against Hen's way (23 commands, the solution below).
 - Story dates follow your clock: Hen logged in yesterday and retires in three days, whenever you play.
 - `save` / `load <string>` export and restore progress; the game also autosaves to localStorage.
 - A map panel shows the filesystem (always on for easy, `map` toggles it otherwise).
@@ -54,7 +54,8 @@ mkdir ~/magic
 touch ~/magic/token.txt
 cat ~/secrets/egg2.txt
 cd ~/secrets
-rm *.tmp
+ls -a                          # a hidden .cache.tmp: * skips dotfiles
+rm *.tmp .cache.tmp
 mv report.txt ~/documents/
 cat egg3.txt
 cp secrets.cfg secrets.cfg.bak
@@ -66,8 +67,9 @@ cat ~/admin/egg5.txt
 sudo cd /root
 unzip egg6.zip
 cat egg6.txt
-grep -r egg /var/log
-cat /var/backups/egg7.txt
+grep -r egg /var/log           # egg #7 labelled golden-yolk, somewhere in /var/backups
+grep -r golden-yolk /var/backups
+cat /var/backups/.attic/2019/misc/egg7.txt
 ```
 
 </details>

@@ -48,6 +48,21 @@ Branch: `finish-polish`. Small unsigned commits per step.
 - [x] Aliases: `nano`, `vim`, `vi` → edit; `exit` → menu (hidden)
 - [x] Editor keyboard: Esc/Ctrl+S from anywhere in the modal, Ctrl+O (nano save); intro `[ enter shell ]` autofocus
 - [x] Story dates follow the player's clock (logs yesterday, retirement in 3 days, never saved)
+
+## Playtest 1 (2026-10-27) → fixes
+
+- [x] Intro "onFriday" space; Enter on empty line prints a prompt; empty lines keep height
+- [x] `difficulty` / `man` argument completion; `/root` contents not completed before entering
+- [x] Egg 2: riddle says ~ itself (not documents); permission error explains only ~ is writable
+- [x] Map: /home → player/ (~) tree level; eggs not blue; current folder ◂
+- [x] Admin theme: white headings, sky announcements; grayscale says how to get colour back
+- [x] Contrast ≥ 4:1, colour-blind markers
+- [x] `help` marks new commands
+- [x] Hidden files: `ls -a`, egg 3 `.cache.tmp`, egg 7 in `/var/backups/.attic/2019/misc`
+- [x] Egg 7: messy backups with decoys + 3 easter eggs (Rooster's IOU, grocery list, chicken)
+- [x] Per-egg time/commands vs. Hen's way; ASCII win celebration
+- [x] schema.org JSON-LD enriched
+- [ ] Playtest 2 → merge to main → deploy
 - [x] Playthrough check updated (19 checks: bypasses, hint reset, door announce, new-commands nudge, nano alias, win)
 
 ## Inspiration: learnGitBranching (researched 2026-10-27)

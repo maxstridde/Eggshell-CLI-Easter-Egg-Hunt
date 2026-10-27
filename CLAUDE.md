@@ -55,11 +55,11 @@ FS nodes can carry `locked: (state: GameState) => boolean`; `ls` and `cd` evalua
 |---|---|---|---|
 | 1 | The Signal | `wifi connect EggHunt-5G` (pw in `/etc/wifi.json`) | `~/documents` → egg1 |
 | 2 | The Builder | `mkdir ~/magic` + `touch ~/magic/token.txt` | `~/secrets` → egg2 |
-| 3 | The Janitor | `rm` the `*.tmp` + `mv report.txt ~/documents/` | egg3 appears in `~/secrets` |
+| 3 | The Janitor | `rm` the `*.tmp` (and the hidden `.cache.tmp`, found with `ls -a`) + `mv report.txt ~/documents/` | egg3 appears in `~/secrets` |
 | 4 | The Editor | `cp secrets.cfg <backup>` (house rule), then `edit` → `path_to_vault_locked = false` | `~/vault` → egg4 |
 | 5 | The Administrator | `base64 -d` the passphrase → `secret-egg`; `sudo edit /etc/privilege.cfg` → `allow_admin=true` | `~/admin` → egg5, `/root` |
 | 6 | The Root | `sudo cd /root`, `unzip egg6.zip`, `cat egg6.txt` | `/var` |
-| 7 | The Investigator | `grep -r egg /var/log` → `cat /var/backups/egg7.txt` | win |
+| 7 | The Investigator | `grep -r egg /var/log` (label golden-yolk) → `grep -r golden-yolk /var/backups` → `cat /var/backups/.attic/2019/misc/egg7.txt` | win |
 
 `cat`-ing an egg (`EGGS` in `fs.ts`) appends it to `state.eggsFound[]` and completes its stage; every lock also requires the previous eggs (`upTo`). Locks are hard walls: every path command goes through `blocked()` / `lockedAt()`.
 
@@ -76,7 +76,7 @@ Four help levels: 0 = the world (files, eggs, door announcements), then `hint` t
 | map panel | always | toggle | toggle | hidden |
 | clue-file extras | `help` pointers | base | stripped | stripped |
 
-Escalation state is `state.hint {key, asks, since}` (not saved). The key is stage + `step` + door-open, so sub-progress restarts at the nudge; 8 commands without asking drop a tier; difficulty change and load reset it. On easy/medium, 3 failed commands in a row print "stuck? try `hint`". Before the exact tier (easy only) one extra `hint` is required ("The next hint is the exact answer…"). `state.commands` counts commands while hunting; the win shows it against `HEN_WAY` (21, the README solution). When a stage's `opened` flips within the stage, App prints its `announce` line.
+Escalation state is `state.hint {key, asks, since}` (not saved). The key is stage + `step` + door-open, so sub-progress restarts at the nudge; 8 commands without asking drop a tier; difficulty change and load reset it. On easy/medium, 3 failed commands in a row print "stuck? try `hint`". Before the exact tier (easy only) one extra `hint` is required ("The next hint is the exact answer…"). `state.stats[egg]` counts commands and active time (gaps capped at 2 min, `lastAt` not saved) while hunting; the win plays `Celebration.tsx` (the one allowed animation, any key skips), then a per-egg table against `HEN_WAY_PER_EGG` (sum 23, the README solution). When a stage's `opened` flips within the stage, App prints its `announce` line.
 
 ### Story dates
 
@@ -96,15 +96,21 @@ All serialization lives in `src/game/save.ts` (`exportSave` / `importSave` / `lo
 
 `menu` (and hidden alias `quit`) reopen the intro overlay via `ctx.openMenu()` without losing progress. Hidden aliases: `exit`, `stage` (= `eggs`), `vi`, `cls`; `nano`/`vim` = `edit`.
 
+### Hidden files
+
+Dot names are hidden like in bash: `ls` skips them (`ls -a` shows them plus `./ ../`), `*` never matches a leading dot, Tab completes them only after a typed `.`. `help` marks entries that joined since the last `help` (`state.helpSeen`, saved).
+
 ### Visual constraints
 
 - Strictly monochrome: black background, emerald/gray/red, monospace only
-- No animations, no gradients — must look like a real CLI
+- No animations, no gradients — must look like a real CLI. One exception: the ASCII win celebration
+- Contrast: text ≥ 4:1 on black (stone-400+; stone-500 only for ghost text / locked); state never by colour alone (`[locked]`, `◂` current folder, `← new` in help)
+- Themes: `theme.remap` swaps line colours per terminal user (admin: amber text, white headings, sky announcements)
 - Path alias `@/` → `src/`
 
 ### Tab completion
 
-`candidates()` in `commands.ts` is the single source; `completeInput()` returns the completed line. App shows the remainder as grey ghost text; Tab or → accepts, a second Tab lists multiple candidates. Locked dirs never complete. Mentioned in `start`, `help` and the intro.
+`candidates()` in `commands.ts` is the single source; `completeInput()` returns the completed line. `difficulty` and `man` complete from word lists; `/root` contents stay hidden until entered. App shows the remainder as grey ghost text; Tab or → accepts, a second Tab lists multiple candidates. Locked dirs never complete. Mentioned in `start`, `help` and the intro.
 
 ### Difficulty-aware clue text
 

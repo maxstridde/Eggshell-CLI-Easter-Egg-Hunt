@@ -188,7 +188,8 @@ Door announcement: 🔓 ~/secrets just unlocked.
 ```
 A riddle from Hen:
 
-  In your home there is room for something new.
+  Not in here — in your home itself, in ~,
+  there is room for something new.
   Make it magic — a folder by that very name.
   Then leave a token inside, token.txt,
   to prove you were there. My secrets will open to you.
@@ -201,7 +202,8 @@ A riddle from Hen:
 ```
 A riddle from Hen:
 
-  In your home there is room for something new.
+  Not in here — in your home itself, in ~,
+  there is room for something new.
   Make it magic — a folder by that very name.
   Then leave a token inside, token.txt,
   to prove you were there. My secrets will open to you.
@@ -212,7 +214,7 @@ A riddle from Hen:
 ```
 [sub-step 1: dir]
 1. The riddle in ~/documents describes something to build. Read it word by word.
-2. Make a folder named magic in your home folder. `help` shows the command for making directories.
+2. Make a folder named magic in your home folder itself (~), not inside documents. `help` shows the command for making directories.
 3. `mkdir ~/magic`, then `touch ~/magic/token.txt`
 
 [sub-step 2: token]
@@ -245,7 +247,7 @@ Door announcement: ✨ Something new appeared in ~/secrets.
 
 ```
 !! ~/secrets is over quota !!
-- the temporary files (*.tmp) can go
+- the temporary files (*.tmp) can go — every one of them
 - report.txt is a document — it belongs with the other documents
 
 (`help` lists commands to remove and to move files.
@@ -256,7 +258,7 @@ Door announcement: ✨ Something new appeared in ~/secrets.
 
 ```
 !! ~/secrets is over quota !!
-- the temporary files (*.tmp) can go
+- the temporary files (*.tmp) can go — every one of them
 - report.txt is a document — it belongs with the other documents
 ```
 
@@ -266,7 +268,7 @@ Door announcement: ✨ Something new appeared in ~/secrets.
 [sub-step 1: junk]
 1. Read quota.txt in ~/secrets. Two jobs: some files go, one file moves.
 2. Remove the files ending in .tmp. One command takes several names — or the wildcard *.tmp.
-3. `cd ~/secrets`, `rm *.tmp`, then `mv report.txt ~/documents/`
+3. `rm ~/secrets/*.tmp`, then `ls -a ~/secrets`, then `rm ~/secrets/.cache.tmp`, then `mv ~/secrets/report.txt ~/documents/`
 
 [sub-step 2: report]
 1. Read quota.txt in ~/secrets. Two jobs: some files go, one file moves.
@@ -281,6 +283,8 @@ Door announcement: ✨ Something new appeared in ~/secrets.
 You removed the junk and moved the report where it belongs.
 
 Careful out there: a real shell has no trash can. What you remove is gone.
+Names starting with a dot are hidden, not secret: plain ls and * skip them,
+ls -a shows them. Your real home is full of them (.bashrc, .ssh/).
 Renaming is just moving to a new name — the same command does both.
 Real disks fill up exactly like this: caches, temp files, half-done downloads.
 
@@ -474,9 +478,9 @@ Objective (eggs): Find out where the last egg went.
 ### hints for egg 7 (hint 1 = nudge, 2 = direction, 3 = exact)
 
 ```
-1. Something wrote to the system logs in /var/log. Which log mentions an egg?
-2. Don't read logs line by line — search them. `grep <word> <file>` prints matching lines; -r searches a whole folder.
-3. `grep -r egg /var/log`, then `cat` the path it shows.
+1. Something wrote to the system logs in /var/log. Which log mentions an egg — and what did it do with it?
+2. Don't read logs or backups file by file — search them. `grep <word> <file>` prints matching lines; -r searches a whole folder. The log gives you a word to search for.
+3. `grep -r egg /var/log`, then `grep -r golden-yolk /var/backups`, then `cat` the path it shows.
 ```
 
 ### /var/log/syslog
@@ -493,21 +497,23 @@ Oct 26 08:00:01 eggshell systemd[1]: systemd-tmpfiles-clean.service: Succeeded.
 Oct 26 08:17:44 eggshell kernel: [13544.108] audit: type=1400 apparmor="ALLOWED" profile="lsb_release"
 Oct 26 08:30:00 eggshell systemd[1]: Starting Rotate log files...
 Oct 26 08:30:01 eggshell systemd[1]: logrotate.service: Succeeded.
-Oct 27 00:43:34 eggshell easterd[312]: sweep complete — one asset still unaccounted for
-Oct 27 00:44:34 eggshell easterd[312]: relocating asset to /var/backups/egg7.txt
-Oct 27 00:44:34 eggshell easterd[312]: asset secured. nobody reads the logs anyway.
+Oct 27 01:58:00 eggshell easterd[312]: sweep complete — one asset still unaccounted for
+Oct 27 01:59:00 eggshell easterd[312]: relocating egg #7 into /var/backups — deep down, where nobody looks
+Oct 27 01:59:00 eggshell easterd[312]: egg #7 labelled golden-yolk. nobody reads the logs anyway.
 ```
 
-### /var/backups/egg7.txt
+### /var/backups/.attic/2019/misc/egg7.txt
 
 ```
 🥚 EGG #7 of 7 — The Investigator
-You didn't read the logs. You searched them.
+label: golden-yolk
+You didn't read the logs, and you didn't dig through the mess. You searched.
 
 grep stands for "global regular expression print": it prints every
 line that matches. The same move finds real problems:
   grep error app.log                    lines containing "error"
   grep -r "Failed password" /var/log    search a whole folder
+It found me in a hidden folder, three levels down. Searching beats looking.
 
 That's all seven. You've hatched — the shell is yours now.
 
@@ -532,5 +538,5 @@ Eggs: 7 / 7
   🥚 #6 The Root
   🥚 #7 The Investigator
 🏆 All seven eggs found. You've hatched.
-You used 0 commands (Hen's way: 21). Hen is impressed.
+You used 0 commands (Hen's way: 23). Hen is impressed.
 ```

@@ -421,7 +421,17 @@ export function buildFilesystem(): FsNode {
             ]),
           ]),
           dir("2019", [
+            dir("receipts", [
+              file("feed-store.txt", "Feed store, March 2019\n  layer pellets   12.40\n  oyster grit      3.10\n"),
+              file("hardware.txt", "1x nesting box, 1x heat lamp. Keep the receipt.\n"),
+            ]),
+            dir("photos", [
+              file("coop-roof.txt", "[photo] the coop roof after the storm\n"),
+              file("sunrise.txt", "[photo] 5:40 am, the rooster was early again\n"),
+            ]),
             dir("misc", [
+              file("passwords-old.txt", "All changed since. Nice try.  — Hen\n"),
+              file("todo-2019.txt", "- fix the fence\n- teach the new admin grep\n"),
               file(
           "egg7.txt",
           "🥚 EGG #7 of 7 — The Investigator\n" +

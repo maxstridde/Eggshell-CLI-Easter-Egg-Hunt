@@ -20,6 +20,8 @@ export function MapPanel({ state, root, cwd, mobile }: { state: GameState; root:
 
   // Exact match only — highlights the precise cwd, not parent directories.
   const isCurrent = (path: string) => cwd === path;
+  // Marker for colour-blind players: the current folder isn't only a colour.
+  const here = (path: string) => (isCurrent(path) ? " ◂" : "");
   const isVisited = (path: string) => state.visited.includes(path);
 
   // Files and subdirs of a directory from the static FS.
@@ -89,11 +91,11 @@ export function MapPanel({ state, root, cwd, mobile }: { state: GameState; root:
     allItems.forEach((item, idx) => {
       const isLast = idx === allItems.length - 1;
       const conn = isLast ? "└─" : "├─";
-      const cls = item.isUser ? "text-sky-400" : "text-stone-600";
+      const cls = isCurrent(item.path) ? "text-emerald-300" : item.isUser ? "text-sky-400" : "text-stone-400";
 
       rows.push(
         <div key={item.path} className={`pl-1 ${cls}`}>
-          {baseIndent}{conn} {item.name}{item.isDir ? "/" : ""}
+          {baseIndent}{conn} {item.name}{item.isDir ? "/" : ""}{here(item.path)}
         </div>
       );
 
@@ -109,7 +111,7 @@ export function MapPanel({ state, root, cwd, mobile }: { state: GameState; root:
 
         childItems.forEach((child, ci) => {
           const childConn = ci === childItems.length - 1 ? "└─" : "├─";
-          const childCls = child.isUser ? "text-sky-400" : "text-stone-600";
+          const childCls = child.isUser ? "text-sky-400" : "text-stone-400";
           rows.push(
             <div key={`${item.path}/${child.name}`} className={`pl-1 ${childCls}`}>
               {childIndent}{childConn} {child.name}
@@ -138,12 +140,12 @@ export function MapPanel({ state, root, cwd, mobile }: { state: GameState; root:
         </div>
       )}
 
-      {!mobile && <div className="text-stone-600 mb-2">[ MAP ]</div>}
+      {!mobile && <div className="text-stone-500 mb-2">[ MAP ]</div>}
 
       {/* /home, then player/ (~) as its one subfolder — highlighted only when cwd is exactly there */}
-      <div className={isCurrent("/home") ? "text-emerald-300" : "text-stone-400"}>/home</div>
-      <div className={`pl-1 ${isCurrent("/home/player") ? "text-emerald-300" : "text-stone-400"}`}>
-        └─ player/ (~)
+      <div className={isCurrent("/home") ? "text-emerald-300" : "text-stone-300"}>/home{here("/home")}</div>
+      <div className={`pl-1 ${isCurrent("/home/player") ? "text-emerald-300" : "text-stone-300"}`}>
+        └─ player/ (~){here("/home/player")}
       </div>
 
       {/* Subdirs of /home/player */}
@@ -153,15 +155,15 @@ export function MapPanel({ state, root, cwd, mobile }: { state: GameState; root:
         const cls = active
           ? "text-emerald-300"
           : d.locked
-          ? "text-stone-700"
+          ? "text-stone-500"
           : d.isUser
           ? "text-sky-400"
-          : "text-stone-400";
+          : "text-stone-300";
         const conn = isLast ? "└─" : "├─";
         return (
           <div key={d.path}>
             <div className={`pl-1 ${cls}`}>
-              {"   "}{conn} {d.name}/{d.locked ? " [locked]" : ""}
+              {"   "}{conn} {d.name}/{d.locked ? " [locked]" : ""}{here(d.path)}
             </div>
             {!d.locked && renderDirContents(d.path, isLast ? "      " : "   │  ")}
           </div>
@@ -171,22 +173,22 @@ export function MapPanel({ state, root, cwd, mobile }: { state: GameState; root:
       {/* /etc — show if visited; no leading indent (top-level section) */}
       {state.visited.includes("/etc") && (
         <>
-          <div className={`mt-2 ${isCurrent("/etc") ? "text-emerald-300" : "text-stone-400"}`}>
-            /etc
+          <div className={`mt-2 ${isCurrent("/etc") ? "text-emerald-300" : "text-stone-300"}`}>
+            /etc{here("/etc")}
           </div>
           {renderDirContents("/etc", "")}
         </>
       )}
 
       {/* /root */}
-      <div className={`mt-2 ${isCurrent("/root") ? "text-emerald-300" : rootLocked ? "text-stone-700" : "text-stone-400"}`}>
-        /root{rootLocked ? " [locked]" : ""}
+      <div className={`mt-2 ${isCurrent("/root") ? "text-emerald-300" : rootLocked ? "text-stone-500" : "text-stone-400"}`}>
+        /root{rootLocked ? " [locked]" : ""}{here("/root")}
       </div>
       {!rootLocked && renderDirContents("/root", "")}
 
       {/* /var */}
-      <div className={`mt-2 ${isCurrent("/var") ? "text-emerald-300" : varLocked ? "text-stone-700" : "text-stone-400"}`}>
-        /var{varLocked ? " [locked]" : ""}
+      <div className={`mt-2 ${isCurrent("/var") ? "text-emerald-300" : varLocked ? "text-stone-500" : "text-stone-400"}`}>
+        /var{varLocked ? " [locked]" : ""}{here("/var")}
       </div>
       {!varLocked && renderDirContents("/var", "")}
     </div>

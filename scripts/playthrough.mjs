@@ -36,7 +36,7 @@ try {
 
   // Ghost text + Tab completion.
   await input.fill("cat REA"); await page.waitForTimeout(40);
-  check((await page.locator("form .text-stone-600").innerText()) === "DME.txt", "ghost text suggests README.txt");
+  check((await page.locator("form .text-stone-500").innerText()) === "DME.txt", "ghost text suggests README.txt");
   await input.press("Tab");
   check((await input.inputValue()) === "cat README.txt", "Tab accepts the suggestion");
   await input.fill("");

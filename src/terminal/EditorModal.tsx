@@ -36,7 +36,7 @@ export function EditorModal({
       <div className="w-full max-w-3xl border border-stone-700 bg-stone-950 text-emerald-200 shadow-2xl flex flex-col">
         <div className="flex items-center justify-between px-3 py-2 border-b border-stone-800 bg-stone-900">
           <div className="text-sm text-stone-300">edit — {path}</div>
-          <div className="text-xs text-stone-500">{saveShortcut} to save · Esc to cancel</div>
+          <div className="text-xs text-stone-400">{saveShortcut} to save · Esc to cancel</div>
         </div>
         <textarea
           ref={taRef}

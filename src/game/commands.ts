@@ -345,7 +345,7 @@ export const commands: Record<string, CommandHandler> = {
     ctx.print(encoded);
     ctx.print("Use `load <string>` to restore.", "text-stone-400");
     navigator.clipboard?.writeText(encoded).catch(() => {
-      ctx.print("(clipboard unavailable — copy the string above manually)", "text-stone-500");
+      ctx.print("(clipboard unavailable — copy the string above manually)", "text-stone-400");
     });
   },
 
@@ -417,7 +417,7 @@ export const commands: Record<string, CommandHandler> = {
     }
     names.sort();
     names.forEach((n) => {
-      if (n.includes("[locked]")) ctx.print(n, "text-stone-500");
+      if (n.includes("[locked]")) ctx.print(n, "text-stone-400");
       else if (n.endsWith("/")) ctx.print(n, "text-sky-300");
       else ctx.print(n);
     });
@@ -458,9 +458,9 @@ export const commands: Record<string, CommandHandler> = {
 
     // Binary file guard
     if (target.endsWith(".zip")) {
-      ctx.print("PK   ¥ÓX«Íï", "text-stone-500");
-      ctx.print("ø²Ô ÃµBÑxäÇ.ú»...", "text-stone-500");
-      ctx.print("(binary file — output truncated)", "text-stone-500");
+      ctx.print("PK   ¥ÓX«Íï", "text-stone-400");
+      ctx.print("ø²Ô ÃµBÑxäÇ.ú»...", "text-stone-400");
+      ctx.print("(binary file — output truncated)", "text-stone-400");
       return;
     }
 
@@ -684,7 +684,7 @@ export const commands: Record<string, CommandHandler> = {
       encoded =
         ctx.state.edits[filePath] ??
         (fileNode?.kind === "file" ? fileContent(fileNode, ctx.state) : userFile?.content ?? "");
-      ctx.print(`(reading ${filePath})`, "text-stone-500");
+      ctx.print(`(reading ${filePath})`, "text-stone-400");
       isFileDecode = true;
     } else {
       encoded = raw;

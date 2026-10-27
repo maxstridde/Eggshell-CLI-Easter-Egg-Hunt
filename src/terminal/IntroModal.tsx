@@ -88,7 +88,7 @@ export function IntroModal({
               </button>
             ))}
           </div>
-          <div className="mt-1 text-xs text-stone-600">
+          <div className="mt-1 text-xs text-stone-500">
             {mapNote[currentDifficulty]}
           </div>
         </div>

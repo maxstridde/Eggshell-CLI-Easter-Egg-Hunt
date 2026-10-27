@@ -290,7 +290,7 @@ export default function App() {
                 {/* ghost text: invisible copy of the input, then the suggestion */}
                 <div aria-hidden className="absolute inset-0 pointer-events-none whitespace-pre overflow-hidden">
                   <span className="invisible">{input}</span>
-                  <span className="text-stone-600">{ghost}</span>
+                  <span className="text-stone-500">{ghost}</span>
                 </div>
                 <input
                   ref={inputRef}

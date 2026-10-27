@@ -23,8 +23,10 @@ interface StageDef {
 }
 
 const extracted = (s: GameState) => s.userCreated.some((u) => u.path === EGGS[5]);
-const junkLeft = (s: GameState) =>
-  s.userCreated.some((u) => /^\/home\/player\/secrets\/[^/]+\.tmp$/.test(u.path));
+const tmpLeft = (s: GameState) =>
+  s.userCreated.filter((u) => /^\/home\/player\/secrets\/[^/]+\.tmp$/.test(u.path)).map((u) => u.path.split("/").pop()!);
+const junkLeft = (s: GameState) => tmpLeft(s).some((n) => !n.startsWith("."));
+const hiddenLeft = (s: GameState) => tmpLeft(s).some((n) => n.startsWith("."));
 
 export const STAGES: StageDef[] = [
   {
@@ -63,14 +65,19 @@ export const STAGES: StageDef[] = [
       (s) =>
         junkLeft(s)
           ? "Remove the files ending in .tmp. One command takes several names — or the wildcard *.tmp."
+          : hiddenLeft(s)
+          ? "One .tmp file is hidden: its name starts with a dot, so plain listings and * skip it. `help` shows how to list everything."
           : "The junk is gone. Now move report.txt into ~/documents. `help` lists a command for moving.",
       (s) =>
-        junkLeft(s)
-          ? "`cd ~/secrets`, `rm *.tmp`, then `mv report.txt ~/documents/`"
-          : "`mv ~/secrets/report.txt ~/documents/`",
+        [
+          junkLeft(s) && "`rm ~/secrets/*.tmp`",
+          hiddenLeft(s) && "`ls -a ~/secrets`",
+          hiddenLeft(s) && "`rm ~/secrets/.cache.tmp`",
+          s.userCreated.some((u) => u.path === "/home/player/secrets/report.txt") && "`mv ~/secrets/report.txt ~/documents/`",
+        ].filter(Boolean).join(", then "),
     ],
     gate: (s) => !hasEgg(s, 3),
-    step: (s) => (junkLeft(s) ? "junk" : "report"),
+    step: (s) => (junkLeft(s) ? "junk" : hiddenLeft(s) ? "hidden" : "report"),
     opened: (s) => s.userCreated.some((u) => u.path === EGGS[2]),
     announce: "✨ Something new appeared in ~/secrets.",
   },

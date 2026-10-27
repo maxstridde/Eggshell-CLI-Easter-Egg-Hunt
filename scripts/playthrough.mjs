@@ -65,6 +65,11 @@ try {
   await run("cd ~/secrets"); await run("rm report.txt");
   check(/still needed/.test(await last()), "rm report.txt refused");
   await run("rm *.tmp"); await run("mv report.txt ~/documents/");
+  await run("cat quota.txt");
+  check(/still over quota/.test(await out()) && !/egg3/.test(await (async () => { await run("ls"); return last(); })()), "hidden .cache.tmp survives rm *.tmp");
+  await run("ls -a");
+  check(/\.cache\.tmp/.test(await out()), "ls -a shows the hidden file");
+  await run("rm .cache.tmp");
   await run("cat egg3.txt");
   await run("edit secrets.cfg");
   check(/back/.test(await last()), "edit refused without backup");

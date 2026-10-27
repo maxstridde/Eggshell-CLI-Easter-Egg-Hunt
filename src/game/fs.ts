@@ -81,6 +81,8 @@ export const TIDY_EGG =
   "You removed the junk and moved the report where it belongs.\n" +
   "\n" +
   "Careful out there: a real shell has no trash can. What you remove is gone.\n" +
+  "Names starting with a dot are hidden, not secret: plain ls and * skip them,\n" +
+  "ls -a shows them. Your real home is full of them (.bashrc, .ssh/).\n" +
   "Renaming is just moving to a new name — the same command does both.\n" +
   "Real disks fill up exactly like this: caches, temp files, half-done downloads.\n" +
   "\n" +
@@ -242,17 +244,24 @@ export function buildFilesystem(): FsNode {
               "House rule: back up before you change. A copy named <file>.bak\n" +
               "is the custom — if the edit goes wrong, the original is safe.\n"
           ),
-          file("quota.txt", (s) =>
-            s.userCreated.some((u) => u.path === EGGS[2])
-              ? "~/secrets is within quota. Thank you!  — Hen\n"
-              : "!! ~/secrets is over quota !!\n" +
-                "- the temporary files (*.tmp) can go\n" +
-                "- report.txt is a document — it belongs with the other documents\n" +
-                (isEasy(s)
-                  ? "\n(`help` lists commands to remove and to move files.\n" +
-                    " * is a wildcard: *.tmp means every name ending in .tmp)\n"
-                  : "")
-          ),
+          file("quota.txt", (s) => {
+            if (s.userCreated.some((u) => u.path === EGGS[2])) return "~/secrets is within quota. Thank you!  — Hen\n";
+            const tmp = s.userCreated.filter((u) => /^\/home\/player\/secrets\/[^/]+\.tmp$/.test(u.path));
+            const onlyHidden = tmp.length > 0 && tmp.every((u) => u.path.split("/").pop()!.startsWith("."));
+            const reportLeft = s.userCreated.some((u) => u.path === "/home/player/secrets/report.txt");
+            if (onlyHidden)
+              return "!! ~/secrets is still over quota !!\n" +
+                "- something temporary is still in here. Not every file shows up in a plain listing.\n" +
+                (reportLeft ? "- report.txt is a document — it belongs with the other documents\n" : "") +
+                (isEasy(s) ? "\n(Names starting with a dot are hidden. `help` shows how to list them too.)\n" : "");
+            return "!! ~/secrets is over quota !!\n" +
+              "- the temporary files (*.tmp) can go — every one of them\n" +
+              "- report.txt is a document — it belongs with the other documents\n" +
+              (isEasy(s)
+                ? "\n(`help` lists commands to remove and to move files.\n" +
+                  " * is a wildcard: *.tmp means every name ending in .tmp)\n"
+                : "");
+          }),
         ], {
           locked: (s) => !(s.createdMagicDir && s.createdTokenFile) || !upTo(s, 1),
         }),

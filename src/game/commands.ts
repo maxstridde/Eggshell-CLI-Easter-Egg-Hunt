@@ -32,6 +32,7 @@ interface HelpEntry {
 const HELP_ENTRIES: HelpEntry[] = [
   { cmd: "pwd",                       desc: "print working directory — where am I?", minStage: 0 },
   { cmd: "ls [path]",                 desc: "list — show what's in a folder", minStage: 0 },
+  { cmd: "ls -a [path]",              desc: "list all — hidden files too (names starting with .)", minStage: 2 },
   { cmd: "cd <path>",                 desc: "change directory  (cd .. goes up, cd alone goes home)", minStage: 0 },
   { cmd: "cat <file>",                desc: "concatenate — print a file's contents", minStage: 0 },
   { cmd: "clear",                     desc: "clear the screen", minStage: 0 },
@@ -39,7 +40,7 @@ const HELP_ENTRIES: HelpEntry[] = [
   { cmd: "wifi list | connect <name>", desc: "manage Wi-Fi  (EggshellOS only — real systems differ)", minStage: 0 },
   { cmd: "mkdir <name>",              desc: "make directory — create a folder", minStage: 1 },
   { cmd: "touch <file>",              desc: "touch a file: create it empty (or update its timestamp)", minStage: 1 },
-  { cmd: "rm <file...>",              desc: "remove files  (* matches any name: rm *.tmp)", minStage: 2 },
+  { cmd: "rm <file...>",              desc: "remove files  (* matches any name except hidden ones: rm *.tmp)", minStage: 2 },
   { cmd: "mv <file> <dest>",          desc: "move a file — or rename it", minStage: 2 },
   { cmd: "cp <file> <dest>",          desc: "copy a file", minStage: 3 },
   { cmd: "edit <file>",               desc: "open the text editor  (nano and vim work too)", minStage: 3 },
@@ -381,7 +382,10 @@ export const commands: Record<string, CommandHandler> = {
     if (next) ctx.print(next, "text-yellow-300");
   },
 
-  ls: (args, ctx) => {
+  ls: (allArgs, ctx) => {
+    // Flags: -a shows hidden (dot) names; other flags (-l…) are accepted and ignored.
+    const showHidden = allArgs.some((a) => /^-\w*a/.test(a));
+    const args = allArgs.filter((a) => !a.startsWith("-"));
     const target = args[0] ? resolvePath(ctx.cwd, args[0]) : ctx.cwd;
     const node = findNode(ctx.root, target);
     const isUserDir = ctx.state.userCreated.some((u) => u.type === "dir" && u.path === target);
@@ -417,12 +421,12 @@ export const commands: Record<string, CommandHandler> = {
       names.push(u.type === "dir" ? name + "/" : name);
     }
 
-    if (names.length === 0) {
+    const shown = showHidden ? names : names.filter((n) => !n.startsWith("."));
+    if (shown.length === 0) {
       ctx.print("(empty)");
       return;
     }
-    names.sort();
-    names.forEach((n) => {
+    [...(showHidden ? ["./", "../"] : []), ...shown.sort()].forEach((n) => {
       if (n.includes("[locked]")) ctx.print(n, "text-stone-400");
       else if (n.endsWith("/")) ctx.print(n, "text-sky-300");
       else ctx.print(n);
@@ -735,7 +739,11 @@ export const commands: Record<string, CommandHandler> = {
       }
       const dir = parentOf(path);
       const re = new RegExp("^" + baseName(path).replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*") + "$");
-      const hits = ctx.state.userCreated.filter((u) => parentOf(u.path) === dir && re.test(baseName(u.path)));
+      // Like bash: * never matches a leading dot, unless the pattern starts with one.
+      const dotOk = baseName(path).startsWith(".");
+      const hits = ctx.state.userCreated.filter(
+        (u) => parentOf(u.path) === dir && re.test(baseName(u.path)) && (dotOk || !baseName(u.path).startsWith("."))
+      );
       if (hits.length === 0) ctx.print(`rm: cannot remove '${arg}': No such file or directory`, "text-red-400");
       for (const h of hits) targets.push({ path: h.path, shown: baseName(h.path) });
     }
@@ -1026,7 +1034,11 @@ export function candidates(raw: string, root: FsNode, state: GameState, cwd: str
     const parent = u.path.split("/").slice(0, -1).join("/") || "/";
     if (parent === dirPath) names.push(u.path.split("/").pop()! + (u.type === "dir" ? "/" : ""));
   }
-  return names.filter((n) => n.startsWith(prefix)).map((n) => dirPart + n).sort();
+  // Hidden names complete only once you've typed the dot (bash does the same).
+  return names
+    .filter((n) => n.startsWith(prefix) && (prefix.startsWith(".") || !n.startsWith(".")))
+    .map((n) => dirPart + n)
+    .sort();
 }
 
 // The completed input line (single match, or longest common prefix), or null

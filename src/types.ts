@@ -65,6 +65,8 @@ export const initialState: GameState = {
     { type: "file", path: "/home/player/secrets/session-0412.tmp", content: "temporary session cache — safe to delete\n" },
     { type: "file", path: "/home/player/secrets/upload-3f9a.tmp", content: "partial upload — safe to delete\n" },
     { type: "file", path: "/home/player/secrets/thumbs.tmp", content: "thumbnail cache — safe to delete\n" },
+    // Hidden (dot) file: `ls` and `*` skip it, `ls -a` shows it.
+    { type: "file", path: "/home/player/secrets/.cache.tmp", content: "hidden cache — safe to delete\n" },
     { type: "file", path: "/home/player/secrets/report.txt", content: "Quarterly egg report\n====================\nEggs hidden: 7\nEggs found:  ask the player\n\nThis report belongs in ~/documents.\n" },
   ],
   sudoTries: 0,
